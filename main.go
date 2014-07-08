@@ -20,6 +20,9 @@ func main() {
 	ch := lexer.Lex(os.Args[1], string(b))
 	parser.Parse(ch, done)
 	tree := <-done
+	if tree == nil {
+		os.Exit(1)
+	}
 	//fmt.Printf("%s\n", tree)
 	num := interp.Exec(tree)
 	fmt.Printf("result: ")

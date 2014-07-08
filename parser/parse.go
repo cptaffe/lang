@@ -38,7 +38,7 @@ func Parse(ch chan token.Token, done chan *ast.Tree) {
 // errorf returns an error token and terminates the scan by passing
 // back a nil pointer that will be the next state, terminating l.nextItem.
 func (p *parser) errorf(tok token.Token) stateFn {
-	fmt.Printf("\nError: %s\n", tok.Val)
+	fmt.Printf("Error: %s\n", tok.Val)
 	return nil
 }
 
