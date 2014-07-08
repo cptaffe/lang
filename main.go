@@ -7,6 +7,7 @@ import (
 	"./parser"
 	"bufio"
 	"fmt"
+	"io"
 	"log"
 	"os"
 )
@@ -39,6 +40,10 @@ func main() {
 		fmt.Print(": ")
 		b, _, err := r.ReadLine()
 		if err != nil {
+			if err == io.EOF {
+				fmt.Print("exit\n")
+				return
+			}
 			log.Print(err)
 		}
 		//fmt.Printf("%s\n", string(b))
