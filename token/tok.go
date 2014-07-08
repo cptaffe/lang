@@ -34,16 +34,17 @@ const (
 	ItemBeginList                 // starts a list
 	ItemEndList                   // ends a list
 	beginOperation
-	ItemAdd // add
-	ItemAdc // add with carry
-	ItemSub // subtract
-	ItemSbc // subtract with carry
-	ItemMul // multiply
-	ItemAnd // bitwise and
-	ItemOrr // bitwise or
-	ItemEor // bitwise xor
-	ItemBic // bitwise bit clear
-	ItemTeq // bitwise test equality
+	ItemAdd   // add
+	ItemAdc   // add with carry
+	ItemSub   // subtract
+	ItemSbc   // subtract with carry
+	ItemMul   // multiply
+	ItemAnd   // bitwise and
+	ItemOrr   // bitwise or
+	ItemEor   // bitwise xor
+	ItemBic   // bitwise bit clear
+	ItemTeq   // bitwise test equality
+	ItemColon // assgnment
 	endOperation
 	beginCompare
 	ItemEq // Z set: test equality
@@ -66,7 +67,6 @@ const (
 	ItemRawString // `raw string`
 	endConstant
 	ItemVariable    // variable
-	ItemColon       // nothing for now, maybe assgnment
 	ItemLineComment // comment '//' style
 	ItemNewline     // newline
 	ItemSpace       // spaces

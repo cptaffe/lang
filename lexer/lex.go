@@ -95,13 +95,6 @@ func (l *lexer) errorf(format string, args ...interface{}) stateFn {
 	return nil
 }
 
-// nextItem returns the next item from the input.
-func (l *lexer) nextItem() token.Token {
-	item := <-l.items
-	l.lastPos = item.Pos
-	return item
-}
-
 // lex creates a new scanner for the input string.
 func Lex(name, input string) chan token.Token {
 	l := &lexer{
@@ -195,8 +188,6 @@ func lexInsideList(l *lexer) stateFn {
 		return lexList
 	case r == '/':
 		return lexComment
-	case r == ':':
-		l.emit(token.ItemColon)
 	case r == '"':
 		return lexQuote
 	case r == '`':

@@ -2,6 +2,7 @@ package main
 
 import (
 	"./ast"
+	"./interp"
 	"./lexer"
 	"./parser"
 	"fmt"
@@ -19,5 +20,14 @@ func main() {
 	ch := lexer.Lex(os.Args[1], string(b))
 	parser.Parse(ch, done)
 	tree := <-done
-	fmt.Printf("%s", tree)
+	//fmt.Printf("%s\n", tree)
+	num := interp.Exec(tree)
+	fmt.Printf("result: ")
+	for i := 0; i < len(num); i++ {
+		if i != len(num)-1 {
+			fmt.Printf("%d, ", num[i])
+		} else {
+			fmt.Printf("%d\n", num[i])
+		}
+	}
 }

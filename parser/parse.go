@@ -6,6 +6,7 @@ import (
 	"../ast"
 	"../token"
 	"fmt"
+	"log"
 )
 
 // stateFn represents the state of the scanner as a function that returns the next state.
@@ -51,7 +52,8 @@ func (p *parser) run() {
 
 // Handles EOF, Errors, sends list to parse inside list.
 func parseAll(p *parser) stateFn {
-	print("Is parsing\n")
+	//print("Is parsing\n")
+	p.tree = Root
 	for {
 		tok := <-p.items
 		switch {
@@ -67,7 +69,7 @@ func parseAll(p *parser) stateFn {
 // Inside a list
 // everything happens here.
 func parseInsideList(p *parser) stateFn {
-	print("Is parsing list\n")
+	//print("Is parsing list\n")
 	for {
 		tok := <-p.items
 		switch {
@@ -94,7 +96,7 @@ func parseInsideList(p *parser) stateFn {
 // An action is a list which does something.
 // actions have the rest of the list as args.
 func parseInsideAction(p *parser) stateFn {
-	print("Is parsing action\n")
+	//print("Is parsing action\n")
 	for {
 		tok := <-p.items
 		switch {
@@ -104,6 +106,11 @@ func parseInsideAction(p *parser) stateFn {
 			})
 		case tok.Typ == token.ItemEndList:
 			p.parenDepth--
+			tree, err := Root.Walk(p.parenDepth)
+			if err != nil {
+				log.Fatal(err)
+			}
+			p.tree = tree
 			if p.parenDepth == 0 {
 				return parseAll
 			} else {
@@ -124,7 +131,7 @@ func isException(tok token.Token) bool {
 }
 
 func handleException(tok token.Token, p *parser) stateFn {
-	print("Is parsing exception\n")
+	//print("Is parsing exception\n")
 	if tok.Typ == token.ItemEOF {
 		return nil
 	}
