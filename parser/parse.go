@@ -18,18 +18,17 @@ type parser struct {
 	items      chan token.Token // channel of scanned items
 	done       chan *ast.Tree   // signals Parse is done
 	tree       *ast.Tree        // tree position
+	Root       *ast.Tree        // tree position
 	parenDepth int              // nesting depth of ( ) exprs
 }
 
-var Root = &ast.Tree{
-	Val: nil,
-}
-
 func Parse(ch chan token.Token, done chan *ast.Tree) {
+	tree := new(ast.Tree)
 	p := &parser{
 		items: ch,
 		done:  done,
-		tree:  Root,
+		tree:  tree,
+		Root:  tree,
 	}
 	go p.run()
 	return
@@ -47,13 +46,14 @@ func (p *parser) run() {
 	for p.state = parseAll; p.state != nil; {
 		p.state = p.state(p)
 	}
-	p.done <- Root
+	close(p.items)
+	p.done <- p.Root
 }
 
 // Handles EOF, Errors, sends list to parse inside list.
 func parseAll(p *parser) stateFn {
 	//print("Is parsing\n")
-	p.tree = Root
+	p.tree = p.Root
 	for {
 		tok := <-p.items
 		switch {
@@ -75,6 +75,8 @@ func parseInsideList(p *parser) stateFn {
 		switch {
 		// keyword at beginning of list
 		// only at beginning because lexer has checked that.
+		case isException(tok):
+			return handleException(tok, p)
 		case token.Keyword(tok.Typ):
 			p.tree = p.tree.Append(&ast.Node{
 				Tok: tok,
@@ -100,13 +102,15 @@ func parseInsideAction(p *parser) stateFn {
 	for {
 		tok := <-p.items
 		switch {
+		case isException(tok):
+			return handleException(tok, p)
 		case token.Constant(tok.Typ):
 			p.tree.Append(&ast.Node{
 				Tok: tok,
 			})
 		case tok.Typ == token.ItemEndList:
 			p.parenDepth--
-			tree, err := Root.Walk(p.parenDepth)
+			tree, err := p.Root.Walk(p.parenDepth)
 			if err != nil {
 				log.Fatal(err)
 			}

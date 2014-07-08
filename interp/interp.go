@@ -18,6 +18,11 @@ var lookup = map[token.ItemType]exec{
 
 func Exec(tree *ast.Tree) []int {
 	var nums []int
+	if tree.Val == nil {
+		if !hasActionChildren(tree) {
+			return nil
+		}
+	}
 	if (tree.Val == nil && hasActionChildren(tree)) || token.Keyword(tree.Val.Tok.Typ) {
 		for i := 0; i < len(tree.Sub); i++ {
 			if isAction(tree.Sub[i]) {
@@ -44,7 +49,7 @@ func Exec(tree *ast.Tree) []int {
 }
 
 func hasActionChildren(tree *ast.Tree) bool {
-	if tree.Sub != nil {
+	if tree.Sub != nil && len(tree.Sub) > 0 {
 		for i := 0; i < len(tree.Sub); i++ {
 			if token.Keyword(tree.Sub[i].Val.Tok.Typ) {
 				return true

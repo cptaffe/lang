@@ -96,9 +96,8 @@ func (l *lexer) errorf(format string, args ...interface{}) stateFn {
 }
 
 // lex creates a new scanner for the input string.
-func Lex(name, input string) chan token.Token {
+func Lex(input string) chan token.Token {
 	l := &lexer{
-		name:  name,
 		input: input,
 		items: make(chan token.Token),
 	}

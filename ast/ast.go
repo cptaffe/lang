@@ -34,7 +34,7 @@ func (tree *Tree) Walk(level int) (*Tree, error) {
 }
 
 func (tree *Tree) String() string {
-	s := ""
+	var s string
 	if tree.Val != nil {
 		s += tree.Val.String()
 	}
@@ -42,7 +42,7 @@ func (tree *Tree) String() string {
 		s += "{"
 		for i := 0; i < len(tree.Sub); i++ {
 			if i != len(tree.Sub)-1 {
-				s += tree.Sub[i].String() + ","
+				s += tree.Sub[i].String() + ", "
 			} else {
 				s += tree.Sub[i].String()
 			}
@@ -53,5 +53,6 @@ func (tree *Tree) String() string {
 }
 
 func (node *Node) String() string {
-	return node.Tok.String()
+	str := node.Tok.String()
+	return str[1 : len(str)-1]
 }

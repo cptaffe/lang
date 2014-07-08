@@ -5,32 +5,47 @@ import (
 	"./interp"
 	"./lexer"
 	"./parser"
+	"bufio"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 )
 
-func main() {
-	b, err := ioutil.ReadFile(os.Args[1])
-	if err != nil {
-		log.Fatal(err)
-	}
+func Compute(s string) string {
+	ch := lexer.Lex(s)
 	done := make(chan *ast.Tree)
-	ch := lexer.Lex(os.Args[1], string(b))
 	parser.Parse(ch, done)
 	tree := <-done
-	if tree == nil {
-		os.Exit(1)
-	}
 	//fmt.Printf("%s\n", tree)
 	num := interp.Exec(tree)
-	fmt.Printf("result: ")
+	if num == nil {
+		return "error"
+	}
+	str := "result: "
 	for i := 0; i < len(num); i++ {
 		if i != len(num)-1 {
-			fmt.Printf("%d, ", num[i])
+			str += fmt.Sprintf("%d, ", num[i])
 		} else {
-			fmt.Printf("%d\n", num[i])
+			str += fmt.Sprintf("%d", num[i])
 		}
+	}
+	return str
+}
+
+// Read input from stdin & output result to stdout
+func main() {
+	r := bufio.NewReader(os.Stdin)
+	for {
+		fmt.Print(": ")
+		b, _, err := r.ReadLine()
+		if err != nil {
+			log.Print(err)
+		}
+		//fmt.Printf("%s\n", string(b))
+		if string(b) == "exit" {
+			os.Exit(0)
+		}
+		ans := Compute(string(b))
+		fmt.Println(ans)
 	}
 }
