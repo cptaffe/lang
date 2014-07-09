@@ -26,10 +26,19 @@ func Compute(s *Program) string {
 	if t == nil {
 		return "error..."
 	}
-	str := "result: "
-	for i := 0; i < (len(t.Sub) - s.Len); i++ {
-		str += fmt.Sprintf("%s", t.Sub[s.Len+i])
+	str := "result: {"
+	app := ""
+	if (len(t.Sub) - s.Len) > 1 {
+		app = ", "
 	}
+	for i := 0; i < (len(t.Sub) - s.Len); i++ {
+		if i == (len(t.Sub)-s.Len)-1 {
+			str += fmt.Sprintf("%s", t.Sub[s.Len+i])
+		} else {
+			str += fmt.Sprintf("%s%s", t.Sub[s.Len+i], app)
+		}
+	}
+	str += "}"
 	s.Len = len(t.Sub) - 1 // set new len
 	return str
 }
