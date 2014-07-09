@@ -258,12 +258,17 @@ func (e *evals) variables(t *Tree) *Tree {
 			}
 			// should be int at this point
 			if t.Sub[1].Val.Typ == ItemInt {
-				// note new variable
-				variabs.Var = append(variabs.Var, &Var{
-					Var:    t.Sub[0].Val.Var,
-					Solved: true,
-					Num:    t.Sub[1].Val.Num,
-				})
+				// check if just reassigning existing variable
+				if v := variabs.getName(t.Sub[0].Val.Var); v != nil {
+					v.Num = t.Sub[1].Val.Num
+					// new variable creation
+				} else {
+					variabs.Var = append(variabs.Var, &Var{
+						Var:    t.Sub[0].Val.Var,
+						Solved: true,
+						Num:    t.Sub[1].Val.Num,
+					})
+				}
 				// return tree
 				return &Tree{
 					Val: &Node{
