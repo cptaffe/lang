@@ -105,7 +105,6 @@ func Eval(tree *parser.Tree) *Tree {
 		ParseTree: tree,
 	}
 	e.createTree(e.ParseRoot, e.Root)
-	//e.variables(e.Root)
 	e.evaluate(e.Root)
 	return e.Root
 }
