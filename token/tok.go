@@ -34,17 +34,20 @@ const (
 	ItemBeginList                 // starts a list
 	ItemEndList                   // ends a list
 	beginOperation
-	ItemAssign // assgnment
-	ItemAdd    // add
-	ItemAdc    // add with carry
-	ItemSub    // subtract
-	ItemSbc    // subtract with carry
-	ItemMul    // multiply
-	ItemAnd    // bitwise and
-	ItemOrr    // bitwise or
-	ItemEor    // bitwise xor
-	ItemBic    // bitwise bit clear
-	ItemTeq    // bitwise test equality
+	ItemAssign   // assgnment
+	ItemFunction // lambda keyword
+	ItemLambda   // lambda variable token
+	ItemList     // list of stuff
+	ItemAdd      // add
+	ItemAdc      // add with carry
+	ItemSub      // subtract
+	ItemSbc      // subtract with carry
+	ItemMul      // multiply
+	ItemAnd      // bitwise and
+	ItemOrr      // bitwise or
+	ItemEor      // bitwise xor
+	ItemBic      // bitwise bit clear
+	ItemTeq      // bitwise test equality
 	// Meta Operations (for ARM)
 	ItemDiv
 	endOperation
@@ -77,6 +80,8 @@ const (
 var key = map[string]ItemType{
 	// Assignment
 	"assign": ItemAssign,
+	"lambda": ItemFunction,
+	"list":   ItemList,
 	// Operations (instructions)
 	"add": ItemAdd,
 	"adc": ItemAdc,
@@ -121,4 +126,13 @@ func Keyword(typ ItemType) bool {
 // returns the token the word is the key to
 func Lookup(word string) ItemType {
 	return key[word]
+}
+
+func StringLookup(t ItemType) string {
+	for i, j := range key {
+		if j == t {
+			return i
+		}
+	}
+	return "unk"
 }

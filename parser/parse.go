@@ -76,7 +76,7 @@ func parseInsideList(p *parser) stateFn {
 		// only at beginning because lexer has checked that.
 		case isException(tok):
 			return handleException(tok, p)
-		case token.Keyword(tok.Typ):
+		case token.Keyword(tok.Typ) || tok.Typ == token.ItemLambda:
 			p.tree = p.tree.Append(&Node{
 				Tok: tok,
 			})

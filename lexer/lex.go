@@ -152,7 +152,8 @@ func lexList(l *lexer) stateFn {
 	if r == leftList {
 		l.parenDepth++
 		l.emit(token.ItemBeginList)
-		return lexInsideList
+		//return lexInsideList
+		return lexKeyword
 	} else if r == rightList {
 		l.parenDepth--
 		if l.parenDepth < 0 {
@@ -220,8 +221,7 @@ func lexVariable(l *lexer) stateFn {
 Loop:
 	for {
 		switch r := l.next(); {
-		//case isAlphaNumeric(r):
-		case !isSpace(r) && r != rightList && r != leftList && !isEndOfLine(r):
+		case isAlphaNumeric(r):
 			// absorb.
 		default:
 			l.backup()
@@ -229,10 +229,33 @@ Loop:
 			switch {
 			case word == "true", word == "false":
 				l.emit(token.ItemBool)
-			case token.IsKeyword(word):
-				l.emit(token.Lookup(word))
 			default:
 				l.emit(token.ItemVariable)
+			}
+			break Loop
+		}
+	}
+	return lexInsideList
+}
+
+// lexVariable scans an alphanumeric.
+func lexKeyword(l *lexer) stateFn {
+Loop:
+	for {
+		switch r := l.next(); {
+		//case isAlphaNumeric(r):
+		case !isSpace(r) && r != rightList && r != leftList && !isEndOfLine(r):
+			// absorb.
+		default:
+			l.backup()
+			word := l.input[l.start:l.pos]
+			switch {
+			case token.IsKeyword(word):
+				l.emit(token.Lookup(word))
+			case isAlphaNumericWord(word):
+				l.emit(token.ItemLambda)
+			default:
+				return l.errorf("not a variable or keyword.")
 			}
 			break Loop
 		}

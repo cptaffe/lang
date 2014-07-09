@@ -77,12 +77,15 @@ func (node *Node) String() string {
 		return "\"" + strconv.Itoa(node.Num) + "\""
 	case ItemVar:
 		if node.Solved {
-			return "(" + node.Var + ":" + strconv.Itoa(node.Num) + ")"
+			return "(" + node.Var + ":" + variabs.getName(node.Var).String() + ")"
 		} else {
 			return "(" + node.Var + ")"
 		}
 	case ItemKey:
-		return "symb"
+		if node.Key == token.ItemLambda {
+			return "lambda"
+		}
+		return token.StringLookup(node.Key)
 	default:
 		return "unk"
 	}
@@ -105,7 +108,7 @@ func Eval(tree *parser.Tree) *Tree {
 		ParseTree: tree,
 	}
 	e.createTree(e.ParseRoot, e.Root)
-	e.evaluate(e.Root)
+	e.evaluate(e.Root, variabs)
 	return e.Root
 }
 
@@ -133,10 +136,18 @@ func (e *evals) createTree(t *parser.Tree, tr *Tree) {
 			e.createTree(t.Sub[i], tr)
 		}
 	} else if token.Keyword(t.Val.Tok.Typ) {
-		tr = tr.Append(&Node{
-			Typ: ItemKey,
-			Key: t.Val.Tok.Typ,
-		})
+		if t.Val.Tok.Typ == token.ItemLambda {
+			tr = tr.Append(&Node{
+				Typ: ItemKey,
+				Key: t.Val.Tok.Typ,
+				Var: t.Val.Tok.Val,
+			})
+		} else {
+			tr = tr.Append(&Node{
+				Typ: ItemKey,
+				Key: t.Val.Tok.Typ,
+			})
+		}
 		for i := 0; i < len(t.Sub); i++ {
 			e.createTree(t.Sub[i], tr)
 		}
@@ -160,12 +171,57 @@ func (e *evals) createTree(t *parser.Tree, tr *Tree) {
 	}
 }
 
+type ValueType int
+
+// Multiple types of variables
+const (
+	ValueFunc ValueType = iota // function
+	ValueNum                   // integer
+)
+
+type Value struct {
+	Typ  ValueType
+	Tree *Tree // deferred evaluation on function tree
+	Num  int   // integer value for numbers
+}
+
+type Var struct {
+	Var string // variable name
+	Num *Value // integer value
+}
+
+type Variab struct {
+	Var []*Var // array of Vars to create a list of variables
+}
+
+var variabs = new(Variab) // global list of variables
+
+func (v Variab) getName(s string) *Var {
+	for i := 0; i < len(v.Var); i++ {
+		if v.Var[i].Var == s {
+			return v.Var[i]
+		}
+	}
+	return nil
+}
+
+func (v *Var) String() string {
+	if v.Num.Typ == ValueFunc {
+		return v.Num.Tree.String()
+		//return v.Num.Tree.String()
+	} else if v.Num.Typ == ValueNum {
+		return strconv.Itoa(v.Num.Num)
+	} else {
+		return "unk"
+	}
+}
+
 // evaluate does all the maths it can
-func (e *evals) evaluate(t *Tree) *Tree {
+func (e *evals) evaluate(t *Tree, v *Variab) *Tree {
 	// evaluate valueless trees that contain children
 	if t.Val == nil {
 		for i := 0; i < len(t.Sub); i++ {
-			tree := e.evaluate(t.Sub[i])
+			tree := e.evaluate(t.Sub[i], v)
 			if tree != nil {
 				t.Sub[i] = tree
 			}
@@ -174,8 +230,12 @@ func (e *evals) evaluate(t *Tree) *Tree {
 	} else if t.Val.Typ == ItemKey {
 		// if the key is an assignment key (special case)
 		// call variables to compute value
-		if t.Val.Key == token.ItemAssign {
-			return e.variables(t)
+		if t.Val.Key == token.ItemAssign || t.Val.Key == token.ItemFunction {
+			return e.variables(t, v)
+			// evaluate lambda function calls
+		} else if t.Val.Key == token.ItemLambda {
+			tree := evalLambda(t, e, v)
+			return tree
 		}
 		// there are keys/vars that need to be computed,
 		// recurse to compute them
@@ -183,13 +243,13 @@ func (e *evals) evaluate(t *Tree) *Tree {
 			for i := 0; i < len(t.Sub); i++ {
 				// recurse on key
 				if t.Sub[i].Val.Typ == ItemKey {
-					tree := e.evaluate(t.Sub[i])
+					tree := e.evaluate(t.Sub[i], v)
 					if tree != nil {
 						t.Sub[i] = tree
 					}
 					// recurse on var
 				} else if t.Sub[i].Val.Typ == ItemVar {
-					tree := e.evaluate(t.Sub[i])
+					tree := e.evaluate(t.Sub[i], v)
 					if tree != nil {
 						t.Sub[i] = tree
 					}
@@ -205,68 +265,72 @@ func (e *evals) evaluate(t *Tree) *Tree {
 				return nil
 			}
 		}
-		// evaluate variables if we run into any
+		// evaluate Lambda if one is called
 	} else if t.Val.Typ == ItemVar {
-		return e.variables(t)
-	}
-	return nil
-}
-
-type Var struct {
-	Solved bool   // tells when Num is 0 and when Num is empty
-	Var    string // variable name
-	Num    int    // integer value
-}
-
-type Variab struct {
-	Var []*Var // array of Vars to create a list of variables
-}
-
-var variabs Variab // global list of variables
-
-func (v Variab) getName(s string) *Var {
-	for i := 0; i < len(v.Var); i++ {
-		if v.Var[i].Var == s {
-			return v.Var[i]
-		}
+		return e.variables(t, v)
 	}
 	return nil
 }
 
 // Variables is called when (1) there is an assignment key
 // (2) there is a variable
-func (e *evals) variables(t *Tree) *Tree {
-	// evaluate assignment keys
-	if t.Val.Key == token.ItemAssign {
+func (e *evals) variables(t *Tree, v *Variab) *Tree {
+	// get variable from record
+	if t.Val.Typ == ItemVar {
+		// t.Val.Var is in the list of found variables
+		va := v.getName(t.Val.Var)
+		if va != nil && va.Num.Typ == ValueNum {
+			// return the tree, which will be appended by its parent in its place
+			return &Tree{
+				Val: &Node{
+					Typ:    ItemVar,
+					Num:    va.Num.Num,
+					Var:    va.Var,
+					Solved: true,
+				},
+			}
+		} else if va.Num.Typ == ValueFunc {
+			fmt.Printf("%s is not a lambda variable.\n", t.Val.Var)
+		} else {
+			fmt.Printf("%s is not a variable.\n", t.Val.Var)
+		}
+		// evaluate assignment keys
+	} else if t.Val.Key == token.ItemAssign {
 		// itemAssign is the assignment operator, look for variables
 		// assignment must have two operators, a variable & some assigned value (can be a key)
 		if len(t.Sub) == 2 && t.Sub[0].Val.Typ == ItemVar {
 			// evaluate the key
 			if t.Sub[1].Val.Typ == ItemKey {
-				tree := e.evaluate(t.Sub[1])
+				tree := e.evaluate(t.Sub[1], v)
 				if tree != nil {
 					t.Sub[1] = tree
 				}
 				// evaluate variable
 			} else if t.Sub[1].Val.Typ == ItemVar {
 				// replace var with var's value node if the var is known
-				tree := e.variables(t.Sub[1])
+				tree := e.variables(t.Sub[1], v)
 				if tree != nil {
 					t.Sub[1] = tree
 				}
-				return e.variables(t)
+				return e.variables(t, v)
 			}
 			// should be int at this point
 			if t.Sub[1].Val.Typ == ItemInt {
 				// check if just reassigning existing variable
-				if v := variabs.getName(t.Sub[0].Val.Var); v != nil {
-					v.Num = t.Sub[1].Val.Num
+				va := v.getName(t.Sub[0].Val.Var)
+				if va != nil {
+					va.Num = &Value{
+						Typ: ValueNum,
+						Num: t.Sub[1].Val.Num,
+					}
 					// new variable creation
 				} else {
-					variabs.Var = append(variabs.Var, &Var{
-						Var:    t.Sub[0].Val.Var,
-						Solved: true,
-						Num:    t.Sub[1].Val.Num,
+					v.Var = append(v.Var, &Var{
+						Var: t.Sub[0].Val.Var,
+						Num: &Value{
+							Typ: ValueNum,
+							Num: t.Sub[1].Val.Num,
+						},
 					})
 				}
 				// return tree
@@ -278,24 +342,71 @@ func (e *evals) variables(t *Tree) *Tree {
 						Solved: true,
 					},
 				}
+				return nil
+				// function lambda variable
+			} else if t.Sub[1].Val.Key == token.ItemFunction {
+				// check if just reassigning existing variable
+				va := v.getName(t.Sub[0].Val.Var)
+				if va != nil {
+					va.Num = &Value{
+						Typ:  ValueFunc,
+						Tree: t.Sub[1],
+					}
+					// new variable creation
+				} else {
+					v.Var = append(v.Var, &Var{
+						Var: t.Sub[0].Val.Var,
+						Num: &Value{
+							Typ:  ValueFunc,
+							Tree: t.Sub[1],
+						},
+					})
+				}
+				// return tree
+				return &Tree{
+					Val: &Node{
+						Typ:    ItemVar,
+						Var:    t.Sub[0].Val.Var,
+						Solved: true,
+					},
+				}
 			}
 		} else {
-			fmt.Printf("Incorrect usage of ':' operator.")
+			fmt.Printf("Incorrect usage of assignment operator.")
 			return nil
 		}
-		// evaluate variables
-	} else if t.Val.Typ == ItemVar {
-		// t.Val.Var is in the list of found variables
-		if v := variabs.getName(t.Val.Var); v != nil {
-			// return the tree, which will be appended by its parent in its place
-			return &Tree{
-				Val: &Node{
-					Typ:    ItemVar,
-					Num:    v.Num,
-					Var:    v.Var,
-					Solved: v.Solved,
-				},
+	}
+	return nil
+}
+
+// lambda takes a lambda tree: variable keyword with args
+func (e *evals) lambda(t *Tree, v *Variab) *Tree {
+	if t.Val.Typ == ItemKey && t.Val.Key == token.ItemLambda {
+		// check if lambda is defined
+		if va := v.getName(t.Val.Var); va != nil {
+			// check number of args
+			args := va.Num.Tree.Sub[0].Sub
+			variab := new(Variab)
+			if len(t.Sub) == len(args) {
+				// add variables to Variab
+				for i := 0; i < len(args); i++ {
+					variab.Var = append(variab.Var, &Var{
+						Var: args[i].Val.Var,
+						Num: &Value{
+							Typ: ValueNum,
+							Num: t.Sub[i].Val.Num,
+						},
+					})
+				}
+				tree := e.evaluate(va.Num.Tree.Sub[1], variab)
+				if tree != nil {
+					return tree
+				}
+			} else {
+				fmt.Printf("Not enough arguments: (%s) for (%s).\n", t.Sub, args)
 			}
+		} else {
+			fmt.Printf("Undefined function\n")
 		}
 	}
 	return nil
@@ -303,6 +414,11 @@ func (e *evals) variables(t *Tree) *Tree {
 
 // evals
 type eval func(t *Tree) *Tree
+
+func evalLambda(t *Tree, e *evals, v *Variab) *Tree {
+	tree := e.lambda(t, v)
+	return tree
+}
 
 func evalAdd(t *Tree) *Tree {
 	n := t.Sub[0].Val.Num

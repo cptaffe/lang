@@ -27,10 +27,7 @@ func Compute(s *Program) string {
 		return "error..."
 	}
 	str := "result: {"
-	app := ""
-	if (len(t.Sub) - s.Len) > 1 {
-		app = ", "
-	}
+	app := ", "
 	for i := 0; i < (len(t.Sub) - s.Len); i++ {
 		if i == (len(t.Sub)-s.Len)-1 {
 			str += fmt.Sprintf("%s", t.Sub[s.Len+i])
@@ -39,7 +36,7 @@ func Compute(s *Program) string {
 		}
 	}
 	str += "}"
-	s.Len = len(t.Sub) - 1 // set new len
+	s.Len = len(t.Sub) // set new len
 	return str
 }
 
@@ -60,7 +57,7 @@ func main() {
 		if string(b) == "exit" {
 			os.Exit(0)
 		}
-		p.Str = string(b)
+		p.Str += string(b)
 		ans := Compute(p)
 		fmt.Println(ans)
 	}
