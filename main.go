@@ -11,8 +11,13 @@ import (
 	"os"
 )
 
-func Compute(s string) string {
-	ch := lexer.Lex(s)
+type Program struct {
+	Str string // string of input
+	Len int    // length of tree last time
+}
+
+func Compute(s *Program) string {
+	ch := lexer.Lex(s.Str)
 	done := make(chan *parser.Tree)
 	parser.Parse(ch, done)
 	tree := <-done
@@ -21,12 +26,18 @@ func Compute(s string) string {
 	if t == nil {
 		return "error..."
 	}
-	return fmt.Sprintf("result: %s", t)
+	str := "result: "
+	for i := 0; i < (len(t.Sub) - s.Len); i++ {
+		str += fmt.Sprintf("%s", t.Sub[s.Len+i])
+	}
+	s.Len = len(t.Sub) - 1 // set new len
+	return str
 }
 
 // Read input from stdin & output result to stdout
 func main() {
 	r := bufio.NewReader(os.Stdin)
+	p := new(Program)
 	for {
 		fmt.Print(": ")
 		b, _, err := r.ReadLine()
@@ -40,7 +51,8 @@ func main() {
 		if string(b) == "exit" {
 			os.Exit(0)
 		}
-		ans := Compute(string(b))
+		p.Str = string(b)
+		ans := Compute(p)
 		fmt.Println(ans)
 	}
 }
