@@ -1,9 +1,8 @@
 package main
 
 import (
-	"./ast"
-	"./interp"
 	"./lexer"
+	"./optim"
 	"./parser"
 	"bufio"
 	"fmt"
@@ -14,23 +13,15 @@ import (
 
 func Compute(s string) string {
 	ch := lexer.Lex(s)
-	done := make(chan *ast.Tree)
+	done := make(chan *parser.Tree)
 	parser.Parse(ch, done)
 	tree := <-done
 	//fmt.Printf("%s\n", tree)
-	num := interp.Exec(tree)
-	if num == nil {
+	t := optim.Eval(tree)
+	if t == nil {
 		return "error"
 	}
-	str := "result: "
-	for i := 0; i < len(num); i++ {
-		if i != len(num)-1 {
-			str += fmt.Sprintf("%d, ", num[i])
-		} else {
-			str += fmt.Sprintf("%d", num[i])
-		}
-	}
-	return str
+	return fmt.Sprintf("result: %s", t)
 }
 
 // Read input from stdin & output result to stdout

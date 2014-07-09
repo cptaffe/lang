@@ -1,4 +1,7 @@
-package ast
+// This is like a token tree type deal
+// All the tokens are put in a parse tree.
+
+package parser
 
 import (
 	"../token"

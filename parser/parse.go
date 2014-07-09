@@ -3,7 +3,6 @@
 package parser
 
 import (
-	"../ast"
 	"../token"
 	"fmt"
 	"log"
@@ -16,14 +15,14 @@ type stateFn func(*parser) stateFn
 type parser struct {
 	state      stateFn          // the next lexing function to enter
 	items      chan token.Token // channel of scanned items
-	done       chan *ast.Tree   // signals Parse is done
-	tree       *ast.Tree        // tree position
-	Root       *ast.Tree        // tree position
+	done       chan *Tree       // signals Parse is done
+	tree       *Tree            // tree position
+	Root       *Tree            // tree position
 	parenDepth int              // nesting depth of ( ) exprs
 }
 
-func Parse(ch chan token.Token, done chan *ast.Tree) {
-	tree := new(ast.Tree)
+func Parse(ch chan token.Token, done chan *Tree) {
+	tree := new(Tree)
 	p := &parser{
 		items: ch,
 		done:  done,
@@ -78,7 +77,7 @@ func parseInsideList(p *parser) stateFn {
 		case isException(tok):
 			return handleException(tok, p)
 		case token.Keyword(tok.Typ):
-			p.tree = p.tree.Append(&ast.Node{
+			p.tree = p.tree.Append(&Node{
 				Tok: tok,
 			})
 			return parseInsideAction
@@ -104,8 +103,8 @@ func parseInsideAction(p *parser) stateFn {
 		switch {
 		case isException(tok):
 			return handleException(tok, p)
-		case token.Constant(tok.Typ):
-			p.tree.Append(&ast.Node{
+		case token.Constant(tok.Typ) || tok.Typ == token.ItemVariable:
+			p.tree.Append(&Node{
 				Tok: tok,
 			})
 		case tok.Typ == token.ItemEndList:

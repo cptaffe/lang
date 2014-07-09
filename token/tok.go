@@ -34,17 +34,19 @@ const (
 	ItemBeginList                 // starts a list
 	ItemEndList                   // ends a list
 	beginOperation
-	ItemAdd   // add
-	ItemAdc   // add with carry
-	ItemSub   // subtract
-	ItemSbc   // subtract with carry
-	ItemMul   // multiply
-	ItemAnd   // bitwise and
-	ItemOrr   // bitwise or
-	ItemEor   // bitwise xor
-	ItemBic   // bitwise bit clear
-	ItemTeq   // bitwise test equality
-	ItemColon // assgnment
+	ItemAssign // assgnment
+	ItemAdd    // add
+	ItemAdc    // add with carry
+	ItemSub    // subtract
+	ItemSbc    // subtract with carry
+	ItemMul    // multiply
+	ItemAnd    // bitwise and
+	ItemOrr    // bitwise or
+	ItemEor    // bitwise xor
+	ItemBic    // bitwise bit clear
+	ItemTeq    // bitwise test equality
+	// Meta Operations (for ARM)
+	ItemDiv
 	endOperation
 	beginCompare
 	ItemEq // Z set: test equality
@@ -73,6 +75,8 @@ const (
 )
 
 var key = map[string]ItemType{
+	// Assignment
+	":": ItemAssign,
 	// Operations (instructions)
 	"+":  ItemAdd,
 	"+c": ItemAdc,
@@ -84,6 +88,7 @@ var key = map[string]ItemType{
 	"^":  ItemEor,
 	"&!": ItemBic,
 	"=":  ItemTeq,
+	"/":  ItemDiv,
 	// Conditionals (conditional instruction prefixes)
 	cond + "=":  ItemEq,
 	cond + "!=": ItemNe,
