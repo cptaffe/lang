@@ -20,12 +20,14 @@ func Compute(s string) string {
 	if t == nil {
 		return "error..."
 	}
-	return fmt.Sprintf("result: %s", t)
+	return fmt.Sprintf("result: %s", t.Sub[len(t.Sub)-1])
 }
 
 // Read input from stdin & output result to stdout
 func main() {
 	r := bufio.NewReader(os.Stdin)
+	var str string
+	keep := true
 	for {
 		fmt.Print(": ")
 		b, _, err := r.ReadLine()
@@ -36,11 +38,15 @@ func main() {
 			}
 			log.Print(err)
 		}
-		//fmt.Printf("%s\n", string(b))
+		if keep {
+			str += string(b)
+		} else {
+			str = string(b)
+		}
 		if string(b) == "exit" {
 			os.Exit(0)
 		}
-		ans := Compute(string(b))
+		ans := Compute(str)
 		fmt.Println(ans)
 	}
 }

@@ -105,7 +105,7 @@ func Eval(tree *parser.Tree) *Tree {
 		ParseTree: tree,
 	}
 	e.createTree(e.ParseRoot, e.Root)
-	e.variables(e.Root)
+	//e.variables(e.Root)
 	e.evaluate(e.Root)
 	return e.Root
 }
@@ -173,16 +173,23 @@ func (e *evals) evaluate(t *Tree) *Tree {
 		}
 		// evaluate keys
 	} else if t.Val.Typ == ItemKey {
-		// evaluate keys with only int children (calculate)
-		if hasOnlyIntChildren(t) {
-			if val, ok := lookup[t.Val.Key]; ok {
-				return val(t)
-			}
-			// evaluate keys with key children, by recursing,
-			// then assigning the returned int node to the key
-		} else if hasSomeKeyChildren(t) {
+		// if the key is an assignment key (special case)
+		// call variables to compute value
+		if t.Val.Key == token.ItemAssign {
+			return e.variables(t)
+		}
+		// there are keys/vars that need to be computed,
+		// recurse to compute them
+		if hasSomeKeyChildren(t) || hasSomeVarChildren(t) {
 			for i := 0; i < len(t.Sub); i++ {
+				// recurse on key
 				if t.Sub[i].Val.Typ == ItemKey {
+					tree := e.evaluate(t.Sub[i])
+					if tree != nil {
+						t.Sub[i] = tree
+					}
+					// recurse on var
+				} else if t.Sub[i].Val.Typ == ItemVar {
 					tree := e.evaluate(t.Sub[i])
 					if tree != nil {
 						t.Sub[i] = tree
@@ -190,6 +197,18 @@ func (e *evals) evaluate(t *Tree) *Tree {
 				}
 			}
 		}
+		// At this point there should only be ints,
+		// if so, compute
+		if hasOnlyIntChildren(t) {
+			if val, ok := lookup[t.Val.Key]; ok {
+				return val(t)
+			} else {
+				return nil
+			}
+		}
+		// evaluate variables if we run into any
+	} else if t.Val.Typ == ItemVar {
+		return e.variables(t)
 	}
 	return nil
 }
@@ -215,76 +234,38 @@ func (v Variab) getName(s string) *Var {
 	return nil
 }
 
+// Variables is called when (1) there is an assignment key
+// (2) there is a variable
 func (e *evals) variables(t *Tree) *Tree {
-	// evalaute valueless trees who have children
-	if t.Val == nil {
-		for i := 0; i < len(t.Sub); i++ {
-			tree := e.variables(t.Sub[i])
-			if tree != nil {
-				t.Sub[i] = tree
-			}
-		}
-		// evaluate children who are keys (not assignment keys)
-	} else if t.Val.Typ == ItemKey && t.Val.Key != token.ItemAssign {
-		// if there are only int children
-		if hasOnlyIntChildren(t) {
-			if val, ok := lookup[t.Val.Key]; ok {
-				return val(t)
-			} else {
-				return nil
-			}
-			// if there are key children or var children, recurse
-		} else if hasSomeKeyChildren(t) || hasSomeVarChildren(t) {
-			for i := 0; i < len(t.Sub); i++ {
-				// recurse on key
-				if t.Sub[i].Val.Typ == ItemKey {
-					tree := e.variables(t.Sub[i])
-					if tree != nil {
-						t.Sub[i] = tree
-					}
-					// return on var
-				} else if t.Sub[i].Val.Typ == ItemVar {
-					tree := e.variables(t.Sub[i])
-					if tree != nil {
-						t.Sub[i] = tree
-					}
-				}
-			}
-		}
-		// evaluate assignment keys
-	} else if t.Val.Key == token.ItemAssign {
+	// evaluate assignment keys
+	if t.Val.Key == token.ItemAssign {
 		// itemAssign is the assignment operator, look for variables
 		// assignment must have two operators, a variable & some assigned value (can be a key)
 		if len(t.Sub) == 2 && t.Sub[0].Val.Typ == ItemVar {
-			// if variable is assigned to a key, evaluate the key
+			// evaluate the key
 			if t.Sub[1].Val.Typ == ItemKey {
-				// replace key with key's value node
+				tree := e.evaluate(t.Sub[1])
+				if tree != nil {
+					t.Sub[1] = tree
+				}
+				// evaluate variable
+			} else if t.Sub[1].Val.Typ == ItemVar {
+				// replace var with var's value node if the var is known
 				tree := e.variables(t.Sub[1])
 				if tree != nil {
-					// if evaluated, add new variable def to table
-					variabs.Var = append(variabs.Var, &Var{
-						Var:    t.Sub[0].Val.Var,
-						Solved: true,
-						Num:    tree.Val.Num,
-					})
-					// return tree value for t's parent to replace t
-					return &Tree{
-						Val: &Node{
-							Typ:    ItemVar,
-							Num:    tree.Val.Num,
-							Var:    t.Sub[0].Val.Var,
-							Solved: true,
-						},
-					}
+					t.Sub[1] = tree
 				}
-				// if the second arg is an int, create a new variable entry
-			} else if t.Sub[1].Val.Typ == ItemInt {
+				return e.variables(t)
+			}
+			// should be int at this point
+			if t.Sub[1].Val.Typ == ItemInt {
+				// note new variable
 				variabs.Var = append(variabs.Var, &Var{
 					Var:    t.Sub[0].Val.Var,
 					Solved: true,
 					Num:    t.Sub[1].Val.Num,
 				})
-				// return tree value for t's parent to replace t
+				// return tree
 				return &Tree{
 					Val: &Node{
 						Typ:    ItemVar,
@@ -293,22 +274,12 @@ func (e *evals) variables(t *Tree) *Tree {
 						Solved: true,
 					},
 				}
-			} else if t.Sub[1].Val.Typ == ItemVar {
-				// replace var with var's value node if the var is known
-				tree := e.variables(t.Sub[1])
-				if tree != nil {
-					t.Sub[1] = tree
-				}
-			} else {
-				fmt.Printf("Incorrect tree structure.")
-				return nil
 			}
-			// this is not a valid ItemVar
 		} else {
 			fmt.Printf("Incorrect usage of ':' operator.")
 			return nil
 		}
-		// if we are on an ItemVar
+		// evaluate variables
 	} else if t.Val.Typ == ItemVar {
 		// t.Val.Var is in the list of found variables
 		if v := variabs.getName(t.Val.Var); v != nil {
