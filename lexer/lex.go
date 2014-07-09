@@ -254,8 +254,6 @@ Loop:
 				l.emit(token.Lookup(word))
 			case isAlphaNumericWord(word):
 				l.emit(token.ItemLambda)
-			default:
-				return l.errorf("not a variable or keyword.")
 			}
 			break Loop
 		}

@@ -289,10 +289,6 @@ func (e *evals) variables(t *Tree, v *Variab) *Tree {
 					Solved: true,
 				},
 			}
-		} else if va.Num.Typ == ValueFunc {
-			fmt.Printf("%s is not a lambda variable.\n", t.Val.Var)
-		} else {
-			fmt.Printf("%s is not a variable.\n", t.Val.Var)
 		}
 		// evaluate assignment keys
 	} else if t.Val.Key == token.ItemAssign {
@@ -390,13 +386,26 @@ func (e *evals) lambda(t *Tree, v *Variab) *Tree {
 			if len(t.Sub) == len(args) {
 				// add variables to Variab
 				for i := 0; i < len(args); i++ {
-					variab.Var = append(variab.Var, &Var{
-						Var: args[i].Val.Var,
-						Num: &Value{
-							Typ: ValueNum,
-							Num: t.Sub[i].Val.Num,
-						},
-					})
+					// pass globals as well as scoped variables
+					// (global overrited by scoped)
+					if t.Sub[i].Val.Typ != ItemInt {
+						tree := e.evaluate(t.Sub[i], v)
+						if tree != nil {
+							t.Sub[i] = tree
+						}
+					}
+					// should be int at this point
+					if t.Sub[i].Val.Typ == ItemInt || (t.Sub[i].Val.Typ == ItemVar && t.Sub[i].Val.Solved) {
+						variab.Var = append(v.Var, &Var{
+							Var: args[i].Val.Var,
+							Num: &Value{
+								Typ: ValueNum,
+								Num: t.Sub[i].Val.Num,
+							},
+						})
+					} else {
+						fmt.Printf("WTF!!!! %s", t.Sub[i])
+					}
 				}
 				tree := e.evaluate(va.Num.Tree.Sub[1], variab)
 				if tree != nil {
@@ -405,8 +414,6 @@ func (e *evals) lambda(t *Tree, v *Variab) *Tree {
 			} else {
 				fmt.Printf("Not enough arguments: (%s) for (%s).\n", t.Sub, args)
 			}
-		} else {
-			fmt.Printf("Undefined function\n")
 		}
 	}
 	return nil
