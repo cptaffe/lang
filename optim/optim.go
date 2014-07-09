@@ -403,8 +403,6 @@ func (e *evals) lambda(t *Tree, v *Variab) *Tree {
 								Num: t.Sub[i].Val.Num,
 							},
 						})
-					} else {
-						fmt.Printf("WTF!!!! %s", t.Sub[i])
 					}
 				}
 				tree := e.evaluate(va.Num.Tree.Sub[1], variab)
