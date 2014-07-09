@@ -81,6 +81,10 @@ func parseInsideList(p *parser) stateFn {
 				Tok: tok,
 			})
 			return parseInsideAction
+		case token.Constant(tok.Typ) || tok.Typ == token.ItemVariable:
+			p.tree.Append(&Node{
+				Tok: tok,
+			})
 		case tok.Typ == token.ItemEndList:
 			p.parenDepth--
 			if p.parenDepth == 0 {

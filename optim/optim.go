@@ -120,7 +120,7 @@ var lookup = map[token.ItemType]eval{
 func (e *evals) createTree(t *parser.Tree, tr *Tree) {
 	// check fo' nills
 	if t.Val == nil {
-		if !hasActionChildren(t) {
+		if len(t.Sub) < 1 {
 			return
 		}
 	} else {
@@ -128,7 +128,7 @@ func (e *evals) createTree(t *parser.Tree, tr *Tree) {
 	}
 
 	// We can do stuff
-	if t.Val == nil && hasActionChildren(t) {
+	if t.Val == nil && len(t.Sub) > 0 {
 		for i := 0; i < len(t.Sub); i++ {
 			e.createTree(t.Sub[i], tr)
 		}

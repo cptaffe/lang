@@ -16,18 +16,17 @@ func Compute(s string) string {
 	done := make(chan *parser.Tree)
 	parser.Parse(ch, done)
 	tree := <-done
+	//fmt.Printf("%s\n", tree)
 	t := optim.Eval(tree)
 	if t == nil {
 		return "error..."
 	}
-	return fmt.Sprintf("result: %s", t.Sub[len(t.Sub)-1])
+	return fmt.Sprintf("result: %s", t)
 }
 
 // Read input from stdin & output result to stdout
 func main() {
 	r := bufio.NewReader(os.Stdin)
-	var str string
-	keep := true
 	for {
 		fmt.Print(": ")
 		b, _, err := r.ReadLine()
@@ -38,15 +37,10 @@ func main() {
 			}
 			log.Print(err)
 		}
-		if keep {
-			str += string(b)
-		} else {
-			str = string(b)
-		}
 		if string(b) == "exit" {
 			os.Exit(0)
 		}
-		ans := Compute(str)
+		ans := Compute(string(b))
 		fmt.Println(ans)
 	}
 }

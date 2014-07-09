@@ -152,7 +152,7 @@ func lexList(l *lexer) stateFn {
 	if r == leftList {
 		l.parenDepth++
 		l.emit(token.ItemBeginList)
-		return checkKeyword
+		return lexInsideList
 	} else if r == rightList {
 		l.parenDepth--
 		if l.parenDepth < 0 {
@@ -205,39 +205,6 @@ func lexInsideList(l *lexer) stateFn {
 	return lexInsideList
 }
 
-func checkKeyword(l *lexer) stateFn {
-	// list can have operation as first element
-	s := l.readWord() // reads word
-	if token.IsKeyword(s) {
-		return lexKeyword
-	} else {
-		if l.start < l.pos {
-			l.pos = l.start
-		}
-		return lexInsideList
-	}
-}
-
-// lexOperation scans operations
-func lexKeyword(l *lexer) stateFn {
-	for {
-		switch r := l.next(); {
-		case !isSpace(r):
-			// consume
-		default:
-			l.backup()
-			word := l.input[l.start:l.pos]
-			switch {
-			case token.IsKeyword(word):
-				l.emit(token.Lookup(word))
-				return lexInsideList
-			default:
-				return l.errorf("unexpected inoperative list: %#U", r)
-			}
-		}
-	}
-}
-
 // lexSpace scans a run of space characters.
 // One space has already been seen.
 func lexSpace(l *lexer) stateFn {
@@ -253,7 +220,8 @@ func lexVariable(l *lexer) stateFn {
 Loop:
 	for {
 		switch r := l.next(); {
-		case isAlphaNumeric(r):
+		//case isAlphaNumeric(r):
+		case !isSpace(r) && r != rightList && r != leftList && !isEndOfLine(r):
 			// absorb.
 		default:
 			l.backup()
@@ -261,6 +229,8 @@ Loop:
 			switch {
 			case word == "true", word == "false":
 				l.emit(token.ItemBool)
+			case token.IsKeyword(word):
+				l.emit(token.Lookup(word))
 			default:
 				l.emit(token.ItemVariable)
 			}
@@ -422,6 +392,16 @@ func isEndOfLine(r rune) bool {
 	return r == '\r' || r == '\n'
 }
 
+func isAlphaNumericWord(w string) bool {
+	for i := 0; i < len(w); i++ {
+		if !isAlphaNumeric(rune(w[i])) {
+			return false
+		}
+		return true
+	}
+	return false
+}
+
 // isAlphaNumeric reports whether r is an alphabetic, digit, or underscore.
 func isAlphaNumeric(r rune) bool {
 	return r == '_' || unicode.IsLetter(r) || unicode.IsDigit(r)
@@ -431,7 +411,7 @@ func isAlphaNumeric(r rune) bool {
 func (l *lexer) readWord() string {
 	for {
 		switch r := l.next(); {
-		case !isSpace(r):
+		case !isSpace(r) && r != leftList && r != rightList:
 			// consume
 		default:
 			l.backup()

@@ -76,19 +76,19 @@ const (
 
 var key = map[string]ItemType{
 	// Assignment
-	":": ItemAssign,
+	"assign": ItemAssign,
 	// Operations (instructions)
-	"+":  ItemAdd,
-	"+c": ItemAdc,
-	"-":  ItemSub,
-	"-c": ItemSbc,
-	"*":  ItemMul,
-	"&":  ItemAnd,
-	"|":  ItemOrr,
-	"^":  ItemEor,
-	"&!": ItemBic,
-	"=":  ItemTeq,
-	"/":  ItemDiv,
+	"add": ItemAdd,
+	"adc": ItemAdc,
+	"sub": ItemSub,
+	"sbc": ItemSbc,
+	"mul": ItemMul,
+	"and": ItemAnd,
+	"or":  ItemOrr,
+	"xor": ItemEor,
+	"bic": ItemBic,
+	"eq":  ItemTeq,
+	"div": ItemDiv,
 	// Conditionals (conditional instruction prefixes)
 	cond + "=":  ItemEq,
 	cond + "!=": ItemNe,
