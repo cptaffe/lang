@@ -16,10 +16,9 @@ func Compute(s string) string {
 	done := make(chan *parser.Tree)
 	parser.Parse(ch, done)
 	tree := <-done
-	//fmt.Printf("%s\n", tree)
 	t := optim.Eval(tree)
 	if t == nil {
-		return "error"
+		return "error..."
 	}
 	return fmt.Sprintf("result: %s", t)
 }
