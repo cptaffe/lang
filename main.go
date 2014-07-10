@@ -45,16 +45,20 @@ func main() {
 	r := bufio.NewReader(os.Stdin)
 	p := new(Program)
 	for {
+		fmt.Print(": ")
 		b, _, err := r.ReadLine()
 		if err != nil {
 			if err == io.EOF {
-				ans := Compute(p)
-				fmt.Println(ans)
-				os.Exit(0)
-			} else {
-				log.Print(err)
+				fmt.Print("exit\n")
+				return
 			}
+			log.Print(err)
+		}
+		if string(b) == "exit" {
+			os.Exit(0)
 		}
 		p.Str += string(b)
+		ans := Compute(p)
+		fmt.Println(ans)
 	}
 }
