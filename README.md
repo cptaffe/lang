@@ -11,6 +11,8 @@ The `lexer.Lex()` takes a string, this could be a file or any other text string 
 
 For more information, refer to the [wiki](../../wiki)
 
+__Note:__ If you are writing a program, and want it to execute when the program is loaded, for now append it with the line `exec`
+
 ## Implementation
 
 If you would like to see an implementation of this, check out [Basilisk](http://github.com/cptaffe/basilisk), which is an interpreter which just takes file or input text and runs the three functions above on it. Minus some subtle printing, that is about all it does.
