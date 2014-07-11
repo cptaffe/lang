@@ -4,8 +4,8 @@
 package parser
 
 import (
-	"../token"
 	"errors"
+	"github.com/cptaffe/lang/token"
 )
 
 type Tree struct {

@@ -4,10 +4,10 @@
 package optim
 
 import (
-	"../parser"
-	"../token"
 	"errors"
 	"fmt"
+	"github.com/cptaffe/lang/parser"
+	"github.com/cptaffe/lang/token"
 	"log"
 	"strconv"
 )

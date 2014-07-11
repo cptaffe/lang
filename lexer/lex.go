@@ -7,8 +7,8 @@
 package lexer
 
 import (
-	"../token"
 	"fmt"
+	"github.com/cptaffe/lang/token"
 	"strings"
 	"unicode"
 	"unicode/utf8"

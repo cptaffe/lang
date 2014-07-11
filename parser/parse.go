@@ -3,8 +3,8 @@
 package parser
 
 import (
-	"../token"
 	"fmt"
+	"github.com/cptaffe/lang/token"
 	"log"
 )
 
