@@ -46,6 +46,10 @@ This snippet would evaluate factorial 40 and then print it.
 (print "Factorial 40 is " (factorial 40))
 ```
 
+```sh
+Factorial 40 is 8.159152832478977e+47
+```
+
 ## License
 
 This code is licensed under a 2-clause BSD-style license that can be found in the LICENSE file.
