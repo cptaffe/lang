@@ -32,4 +32,6 @@ Other langauge functions that work are `assign` and `lambda` as well as `cmp` an
 
 __Unfortunately__ this only works for `(factorial 1)` and `(factorial 2)` for `(factorial 3)` it dies for some reason when being evaluated. Once it gets to `(*optim.eval).lambda` while figuring out the answer for `(factorial 2)`, and goes all the way to a call to `(*optim.eval).evaluate` to evaluate the contents of factorial when n = 2, and somehow seems to return without even calling the function. Some magical pending-call max wall kills it off or something, I have no idea what happends but I have traced it to that call.
 
+## License
+
 This code is licensed under a 2-clause BSD-style license that can be found in the LICENSE file.
