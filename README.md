@@ -43,7 +43,7 @@ This snippet would evaluate factorial 40 and then print it.
   (lambda (list n) 
     (cmp n 1 
       (mul n (factorial (sub n 1))))))
-(print (factorial 40))
+(print "Factorial 40 is " (factorial 40))
 ```
 
 ## License
