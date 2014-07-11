@@ -47,9 +47,9 @@ const (
 	ItemOrr      // bitwise or
 	ItemEor      // bitwise xor
 	ItemBic      // bitwise bit clear
-	ItemTeq      // bitwise test equality
 	// Meta Operations (for ARM)
 	ItemDiv
+	ItemCmp // compare
 	endOperation
 	beginCompare
 	ItemEq // Z set: test equality
@@ -92,22 +92,11 @@ var key = map[string]ItemType{
 	"or":  ItemOrr,
 	"xor": ItemEor,
 	"bic": ItemBic,
-	"eq":  ItemTeq,
 	"div": ItemDiv,
+	"cmp": ItemCmp,
 	// Conditionals (conditional instruction prefixes)
-	cond + "=":  ItemEq,
-	cond + "!=": ItemNe,
-	cond + "#":  ItemVs,
-	cond + "!#": ItemVc,
-	cond + "-":  ItemMi,
-	cond + "+":  ItemPl,
-	cond + ">":  ItemGt,
-	cond + ">=": ItemGe,
-	cond + "<":  ItemLt,
-	cond + "<=": ItemLe,
+	"eq": ItemEq,
 }
-
-const cond = "?"
 
 const Eof = -1
 
