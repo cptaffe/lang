@@ -11,7 +11,11 @@ The `lexer.Lex()` takes a string, this could be a file or any other text string 
 
 For more information, refer to the [wiki](../../wiki)
 
-__Note:__ If you are writing a program, and want it to execute when the program is loaded, for now append it with the line `exec`
+__Note:__ If you are writing a program, and want it to execute when the program is loaded, for now append it with the line:
+
+```
+exec
+```
 
 ## Implementation
 
