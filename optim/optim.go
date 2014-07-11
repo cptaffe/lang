@@ -15,7 +15,7 @@ import (
 type ItemType int
 
 const (
-	ItemInt ItemType = iota
+	ItemNum ItemType = iota
 	ItemVar
 	ItemKey
 )
@@ -58,33 +58,43 @@ func (tree *Tree) String() string {
 		s += tree.Val.String()
 	}
 	if len(tree.Sub) > 0 {
-		s += "{"
 		for i := 0; i < len(tree.Sub); i++ {
 			if i != len(tree.Sub)-1 {
 				s += tree.Sub[i].String() + ", "
 			} else {
-				s += tree.Sub[i].String()
+				// shortens long lambda printing
+				if tree.Val.Key == token.ItemFunction {
+					st := tree.Sub[i].String()
+					if len(s) > 10 {
+						s += fmt.Sprintf("%s...", st[:10])
+					} else {
+						s += fmt.Sprintf("%s", st)
+					}
+				} else {
+					s += tree.Sub[i].String()
+				}
 			}
 		}
-		s += "}"
+		s = fmt.Sprintf("{%s}", s)
 	}
 	return s
 }
 
 func (node *Node) String() string {
 	switch node.Typ {
-	case ItemInt:
-		return "\"" + strconv.FormatFloat(node.Num, 'g', -1, 64) + "\""
+	case ItemNum:
+		return fmt.Sprintf("%s", strconv.FormatFloat(node.Num, 'g', -1, 64))
 	case ItemVar:
 		va := variabs.getName(node.Var)
 		if va != nil {
-			return "(" + node.Var + ":" + variabs.getName(node.Var).String() + ")"
+			s := variabs.getName(node.Var).String()
+			return fmt.Sprintf("(%s:%s)", node.Var, s)
 		} else {
-			return "(" + node.Var + ")"
+			return fmt.Sprintf("(%s)", node.Var)
 		}
 	case ItemKey:
 		if node.Key == token.ItemLambda {
-			return "call(" + node.Var + ")"
+			return fmt.Sprintf("call(%s)", node.Var)
 		}
 		return token.StringLookup(node.Key)
 	default:
@@ -158,7 +168,7 @@ func (e *evals) createTree(t *parser.Tree, tr *Tree) {
 			log.Fatal(err)
 		}
 		tr.Append(&Node{
-			Typ: ItemInt,
+			Typ: ItemNum,
 			Num: num,
 		})
 	} else if t.Val.Tok.Typ == token.ItemVariable {
@@ -211,13 +221,7 @@ func (e *evals) evaluate(t *Tree, v *Variab) *Tree {
 	//fmt.Printf("evaluate: %s\n", t)
 	// evaluate valueless trees that contain children
 	if t.Val == nil {
-		for i := 0; i < len(t.Sub); i++ {
-			tree := e.evaluate(t.Sub[i], v)
-			if tree != nil {
-				t.Sub[i] = tree
-			}
-		}
-		return t
+		return e.evaluateSubs(t, v)
 		// evaluate keys
 	} else if t.Val.Typ == ItemKey {
 		tree := e.keys(t, v)
@@ -241,17 +245,13 @@ func (e *evals) keys(t *Tree, v *Variab) *Tree {
 		case t.Val.Key == token.ItemCmp:
 			tree := e.compare(t, v)
 			return tree
+		case t.Val.Key == token.ItemList:
+			return e.evaluateSubs(t, v) // lists evaluate to themselves
 		case t.Val.Key == token.ItemLambda:
-			tree := evalLambda(t, e, v)
+			tree := evalLambda(e.evaluateSubs(t, v), e, v)
 			return tree
 		default:
-			// Evaluate subs
-			for i := 0; i < len(t.Sub); i++ {
-				tree := e.evaluate(t.Sub[i], v)
-				if tree != nil {
-					t.Sub[i] = tree
-				}
-			}
+			t := e.evaluateSubs(t, v)
 			// Compute math
 			if val, ok := lookup[t.Val.Key]; ok {
 				result, err := val(t)
@@ -263,6 +263,18 @@ func (e *evals) keys(t *Tree, v *Variab) *Tree {
 		}
 	}
 	return nil
+}
+
+// Evaluate Subs, so simple.
+func (e *evals) evaluateSubs(t *Tree, v *Variab) *Tree {
+	// Evaluate subs
+	for i := 0; i < len(t.Sub); i++ {
+		tree := e.evaluate(t.Sub[i], v)
+		if tree != nil {
+			t.Sub[i] = tree
+		}
+	}
+	return t
 }
 
 // Variables is called when (1) there is an assignment key
@@ -321,14 +333,8 @@ func (e *evals) lambda(t *Tree, v *Variab) *Tree {
 		scope := new(Variab)
 		scope.Var = v.Var // don't copy any scope
 		if len(t.Sub) == len(args) {
-			// add variables to scope
+			// add evaluated variables to scope
 			for i := 0; i < len(args); i++ {
-				// evaluate arguments
-				tree := e.evaluate(t.Sub[i], v)
-				if tree != nil {
-					t.Sub[i] = tree
-				}
-
 				// create new scope
 				scope.Scope = append(scope.Scope, &Var{
 					Var:  args[i].Val.Var,
@@ -383,22 +389,17 @@ func evalEq(t *Tree) (*Tree, error) {
 	if len(t.Sub) != 2 {
 		return nil, errors.New("eq takes 2 atoms")
 	}
+
+	var n float64 = 0
 	if t.Sub[0].Val.Num == t.Sub[1].Val.Num {
-		return &Tree{
-			Val: &Node{
-				Typ: ItemInt,
-				Num: 1,
-			},
-		}, nil
-	} else {
-		return &Tree{
-			Val: &Node{
-				Typ: ItemInt,
-				Num: 0,
-			},
-		}, nil
+		n = 1
 	}
-	//fmt.Printf("add %s = %d\n", num, n)
+	return &Tree{
+		Val: &Node{
+			Typ: ItemNum,
+			Num: n,
+		},
+	}, nil
 }
 
 func evalAdd(t *Tree) (*Tree, error) {
@@ -408,11 +409,10 @@ func evalAdd(t *Tree) (*Tree, error) {
 	}
 	return &Tree{
 		Val: &Node{
-			Typ: ItemInt,
+			Typ: ItemNum,
 			Num: n,
 		},
 	}, nil
-	//fmt.Printf("add %s = %d\n", num, n)
 }
 
 func evalSub(t *Tree) (*Tree, error) {
@@ -422,11 +422,10 @@ func evalSub(t *Tree) (*Tree, error) {
 	}
 	return &Tree{
 		Val: &Node{
-			Typ: ItemInt,
+			Typ: ItemNum,
 			Num: n,
 		},
 	}, nil
-	//fmt.Printf("subtract %s = %d\n", num, n)
 }
 
 func evalMul(t *Tree) (*Tree, error) {
@@ -436,11 +435,10 @@ func evalMul(t *Tree) (*Tree, error) {
 	}
 	return &Tree{
 		Val: &Node{
-			Typ: ItemInt,
+			Typ: ItemNum,
 			Num: n,
 		},
 	}, nil
-	//fmt.Printf("multiply %s = %d\n", num, n)
 }
 
 func evalDiv(t *Tree) (*Tree, error) {
@@ -450,83 +448,8 @@ func evalDiv(t *Tree) (*Tree, error) {
 	}
 	return &Tree{
 		Val: &Node{
-			Typ: ItemInt,
+			Typ: ItemNum,
 			Num: n,
 		},
 	}, nil
-	//fmt.Printf("divide %s = %d\n", num, n)
-}
-
-func hasActionChildren(tree *parser.Tree) bool {
-	if tree.Sub != nil && len(tree.Sub) > 0 {
-		for i := 0; i < len(tree.Sub); i++ {
-			if token.Keyword(tree.Sub[i].Val.Tok.Typ) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func hasOnlyValuedChildren(tree *Tree, v *Variab) bool {
-	if tree.Sub != nil && len(tree.Sub) > 0 {
-		for i := 0; i < len(tree.Sub); i++ {
-			if tree.Sub[i].Val.Typ == ItemVar {
-				va := v.getName(tree.Sub[i].Val.Var)
-				if va == nil {
-					return false // unsolved variable
-				}
-			} else if tree.Sub[i].Val.Typ == ItemInt {
-				// good to go
-			} else {
-				return false
-			}
-		}
-		return true
-	}
-	return false
-}
-
-func hasSomeKeyChildren(tree *Tree) bool {
-	if tree.Sub != nil && len(tree.Sub) > 0 {
-		for i := 0; i < len(tree.Sub); i++ {
-			if tree.Sub[i].Val.Typ == ItemKey {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func hasSomeVarChildren(tree *Tree) bool {
-	if tree.Sub != nil && len(tree.Sub) > 0 {
-		for i := 0; i < len(tree.Sub); i++ {
-			if tree.Sub[i].Val.Typ == ItemVar {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func isAction(tree *parser.Tree) bool {
-	if token.Keyword(tree.Val.Tok.Typ) {
-		return true
-	}
-	return false
-}
-
-func intify(tree *parser.Tree) ([]int, error) {
-	var num []int
-	for i := 0; i < len(tree.Sub); i++ {
-		switch tree.Sub[i].Val.Tok.Typ {
-		case token.ItemNumber:
-			n, err := strconv.Atoi(tree.Sub[i].Val.Tok.Val)
-			if err != nil {
-				return nil, err
-			}
-			num = append(num, n)
-		}
-	}
-	return num, nil
 }
