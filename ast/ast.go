@@ -7,41 +7,6 @@ import(
 	"errors"
 )
 
-type Var struct {
-	Var  string // variable name
-	Tree *Tree  // every variable stored as a tree
-}
-
-type Variab struct {
-	Lazy bool // lazy assignment or not so much
-	Var   []*Var // array of Vars to create a list of variables
-	Scope []*Var // scope has precedence if not null
-}
-
-var Variabs = new(Variab) // global list of variables
-
-func (v Variab) GetName(s string) *Var {
-	// check scope first
-	if v.Scope != nil {
-		for i := 0; i < len(v.Scope); i++ {
-			if v.Scope[i].Var == s {
-				return v.Scope[i]
-			}
-		}
-	}
-	// now check var
-	for i := 0; i < len(v.Var); i++ {
-		if v.Var[i].Var == s {
-			return v.Var[i]
-		}
-	}
-	return nil
-}
-
-func (v *Var) String() string {
-	return v.Tree.String()
-}
-
 type ItemType int
 
 // Types used in the Abstract Syntax Tree
@@ -148,13 +113,7 @@ func (node *Node) String() string {
 	case ItemNum:
 		return fmt.Sprintf("%s", strconv.FormatFloat(node.Num, 'g', -1, 64))
 	case ItemVar:
-		va := Variabs.GetName(node.Var)
-		if va != nil {
-			s := Variabs.GetName(node.Var).String()
-			return fmt.Sprintf("(%s:%s)", node.Var, s)
-		} else {
-			return fmt.Sprintf("(%s)", node.Var)
-		}
+		return fmt.Sprintf("%s", node.Var)
 	case ItemKey:
 		if node.Key == token.ItemLambda {
 			return fmt.Sprintf("call(%s)", node.Var)

@@ -11,11 +11,13 @@ import (
 	"github.com/cptaffe/lang/parser"
 	"github.com/cptaffe/lang/token"
 	"github.com/cptaffe/lang/ast"
+	"github.com/cptaffe/lang/variable"
 	"time"
 	"bufio"
 	"os"
-	//"io"
 )
+
+var Variabs = new(variable.Variab) // global list of variables
 
 type evals struct {
 	Root      *ast.Tree        // root of tree
@@ -27,7 +29,7 @@ func Eval(tree *ast.Tree) *ast.Tree {
 		Root:      tree,
 		Tree:      tree,
 	}
-	e.evaluate(e.Root, ast.Variabs)
+	e.evaluate(e.Root, Variabs)
 	return e.Root
 }
 
@@ -44,7 +46,7 @@ var lookup = map[token.ItemType]eval{
 }
 
 // evaluate does all the maths it can
-func (e *evals) evaluate(t *ast.Tree, v *ast.Variab) *ast.Tree {
+func (e *evals) evaluate(t *ast.Tree, v *variable.Variab) *ast.Tree {
 	//fmt.Printf("evaluate: %s\n", t)
 	// evaluate valueless trees that contain children
 	if t.Val == nil {
@@ -64,7 +66,7 @@ func (e *evals) evaluate(t *ast.Tree, v *ast.Variab) *ast.Tree {
 }
 
 // Keys
-func (e *evals) keys(t *ast.Tree, v *ast.Variab) *ast.Tree {
+func (e *evals) keys(t *ast.Tree, v *variable.Variab) *ast.Tree {
 	//fmt.Printf("keys: %s\n", t)
 	// special tokens
 	if t.Val.Typ == ast.ItemKey {
@@ -108,7 +110,7 @@ func (e *evals) keys(t *ast.Tree, v *ast.Variab) *ast.Tree {
 }
 
 // Evaluate Subs, so simple.
-func (e *evals) evaluateSubs(t *ast.Tree, v *ast.Variab) *ast.Tree {
+func (e *evals) evaluateSubs(t *ast.Tree, v *variable.Variab) *ast.Tree {
 	// Evaluate subs
 	if t.Sub != nil {
 		for i := 0; i < len(t.Sub); i++ {
@@ -123,7 +125,7 @@ func (e *evals) evaluateSubs(t *ast.Tree, v *ast.Variab) *ast.Tree {
 
 // Variables is called when (1) there is an assignment key
 // (2) there is a variable
-func (e *evals) variables(t *ast.Tree, v *ast.Variab) *ast.Tree {
+func (e *evals) variables(t *ast.Tree, v *variable.Variab) *ast.Tree {
 	//fmt.Printf("variables: %s\n", t)
 	// get variable from record
 	if t.Val.Typ == ast.ItemVar {
@@ -156,7 +158,7 @@ func (e *evals) variables(t *ast.Tree, v *ast.Variab) *ast.Tree {
 				va.Tree = tree
 				// new variable creation
 			} else {
-				variable := &ast.Var{
+				variable := &variable.Var{
 						Var:  name,
 						Tree: tree,
 					}
@@ -179,7 +181,7 @@ func (e *evals) variables(t *ast.Tree, v *ast.Variab) *ast.Tree {
 }
 
 // lambda takes a lambda tree: variable keyword with args
-func (e *evals) lambda(t *ast.Tree, v *ast.Variab) *ast.Tree {
+func (e *evals) lambda(t *ast.Tree, v *variable.Variab) *ast.Tree {
 	//fmt.Printf("lambda: %s\n", t)
 	// check if lambda is defined
 	va := e.variables(&ast.Tree{
@@ -189,7 +191,7 @@ func (e *evals) lambda(t *ast.Tree, v *ast.Variab) *ast.Tree {
 		},
 	}, v)
 	if va != nil {
-		scope := new(ast.Variab)
+		scope := new(variable.Variab)
 		scope.Var = v.Var // don't copy any scope
 		//fmt.Printf("%s\n",t)
 		args:= va.Sub[0].Sub;
@@ -197,7 +199,7 @@ func (e *evals) lambda(t *ast.Tree, v *ast.Variab) *ast.Tree {
 			// add evaluated variables to scope
 			for i := 0; i < len(args); i++ {
 				// create new scope
-				scope.Scope = append(scope.Scope, &ast.Var{
+				scope.Scope = append(scope.Scope, &variable.Var{
 					Var:  args[i].Val.Var,
 					Tree: t.Sub[i],
 				})
@@ -220,7 +222,7 @@ func (e *evals) lambda(t *ast.Tree, v *ast.Variab) *ast.Tree {
 }
 
 // compare conditionally evaluates the second parameter pending the first
-func (e *evals) compare(t *ast.Tree, v *ast.Variab) *ast.Tree {
+func (e *evals) compare(t *ast.Tree, v *variable.Variab) *ast.Tree {
 	//fmt.Printf("compare: %s\n", t)
 	// test value of first param
 	if len(t.Sub) != 3 {
@@ -240,7 +242,7 @@ func (e *evals) compare(t *ast.Tree, v *ast.Variab) *ast.Tree {
 // evals
 type eval func(t *ast.Tree) (*ast.Tree, error)
 
-func evalLambda(t *ast.Tree, e *evals, v *ast.Variab) *ast.Tree {
+func evalLambda(t *ast.Tree, e *evals, v *variable.Variab) *ast.Tree {
 	tree := e.lambda(t, v)
 	return tree
 }
