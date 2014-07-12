@@ -2,10 +2,9 @@ package ast
 
 import(
 	"github.com/cptaffe/lang/token"
-	"github.com/cptaffe/lang/parser"
 	"strconv"
-	"log"
 	"fmt"
+	"errors"
 )
 
 type Var struct {
@@ -78,65 +77,16 @@ func (tree *Tree) Append(node *Node) *Tree {
 	return tree.Sub[len(tree.Sub)-1]
 }
 
-// Creates a tree from the parse tree
-func CreateFromParse(t *parser.Tree, tr *Tree) {
-	// check fo' nills
-	if t.Val == nil {
-		if len(t.Sub) < 1 {
-			return
+// Walk down tree
+func (tree *Tree) Walk(level int) (*Tree, error) {
+	if level != 0 {
+		if len(tree.Sub) > 0 {
+			return tree.Sub[len(tree.Sub)-1].Walk(level - 1)
+		} else {
+			return nil, errors.New("level nonexistant")
 		}
 	} else {
-		//fmt.Printf("%d\n", t.Val.Tok.Typ)
-	}
-
-	// We can do stuff
-	if t.Val == nil && len(t.Sub) > 0 {
-		for i := 0; i < len(t.Sub); i++ {
-			CreateFromParse(t.Sub[i], tr)
-		}
-	} else if token.Keyword(t.Val.Tok.Typ) {
-		if t.Val.Tok.Typ == token.ItemLambda {
-			tr = tr.Append(&Node{
-				Typ: ItemKey,
-				Key: t.Val.Tok.Typ,
-				Var: t.Val.Tok.Val,
-			})
-		} else {
-			tr = tr.Append(&Node{
-				Typ: ItemKey,
-				Key: t.Val.Tok.Typ,
-			})
-		}
-		for i := 0; i < len(t.Sub); i++ {
-			CreateFromParse(t.Sub[i], tr)
-		}
-	} else if token.Constant(t.Val.Tok.Typ) {
-		var node *Node
-		switch {
-		case t.Val.Tok.Typ == token.ItemNumber:
-			num, err := strconv.ParseFloat(t.Val.Tok.Val, 64)
-			if err != nil {
-				log.Fatal(err)
-			}
-			node = &Node{
-				Typ: ItemNum,
-				Num: num,
-			}
-		case t.Val.Tok.Typ == token.ItemString:
-			node = &Node{
-				Typ: ItemString,
-				Str: t.Val.Tok.Val[1:len(t.Val.Tok.Val)-1],
-			}
-		}
-		tr.Append(node)
-	} else if t.Val.Tok.Typ == token.ItemVariable {
-		tr = tr.Append(&Node{
-			Typ: ItemVar,
-			Var: t.Val.Tok.Val,
-		})
-		for i := 0; i < len(t.Sub); i++ {
-			CreateFromParse(t.Sub[i], tr)
-		}
+		return tree, nil
 	}
 }
 

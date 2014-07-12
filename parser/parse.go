@@ -5,7 +5,10 @@ package parser
 import (
 	"fmt"
 	"github.com/cptaffe/lang/token"
+	"github.com/cptaffe/lang/ast"
+	"github.com/cptaffe/lang/lexer"
 	"log"
+	"strconv"
 )
 
 // stateFn represents the state of the scanner as a function that returns the next state.
@@ -15,22 +18,37 @@ type stateFn func(*parser) stateFn
 type parser struct {
 	state      stateFn          // the next lexing function to enter
 	items      chan token.Token // channel of scanned items
-	done       chan *Tree       // signals Parse is done
-	tree       *Tree            // tree position
-	Root       *Tree            // tree position
+	buff []token.Token // buffer is an array of tokens
+	pos int // pos is the location in buff
+	tree       *ast.Tree            // tree position
+	Root       *ast.Tree            // tree position
 	parenDepth int              // nesting depth of ( ) exprs
 }
 
-func Parse(ch chan token.Token, done chan *Tree) {
-	tree := new(Tree)
+func Parse(s string) *ast.Tree {
+	ch := lexer.Lex(s)
+	tree := new(ast.Tree)
 	p := &parser{
 		items: ch,
-		done:  done,
 		tree:  tree,
 		Root:  tree,
 	}
-	go p.run()
-	return
+	return p.run()
+}
+
+// next
+func (p *parser) next() (token.Token) {
+	if len(p.buff) -1 <= p.pos {
+		p.buff = append(p.buff, <-p.items)
+	}
+	tok := p.buff[p.pos]
+	p.pos++
+	return tok
+}
+
+// backup
+func (p *parser) backup() {
+	p.pos -= 1
 }
 
 // errorf returns an error token and terminates the scan by passing
@@ -41,23 +59,21 @@ func (p *parser) errorf(tok token.Token) stateFn {
 }
 
 // run runs the state machine for the lexer.
-func (p *parser) run() {
+func (p *parser) run() *ast.Tree {
 	for p.state = parseAll; p.state != nil; {
 		p.state = p.state(p)
 	}
-	close(p.items)
-	p.done <- p.Root
+	return p.Root
 }
 
 // Handles EOF, Errors, sends list to parse inside list.
 func parseAll(p *parser) stateFn {
-	//print("Is parsing\n")
-	p.tree = p.Root
 	for {
-		tok := <-p.items
+		tok := p.next()
 		switch {
 		case isException(tok):
-			return handleException(tok, p)
+			p.backup()
+			return parseException
 		case tok.Typ == token.ItemBeginList:
 			p.parenDepth++
 			return parseInsideList
@@ -70,47 +86,46 @@ func parseAll(p *parser) stateFn {
 func parseInsideList(p *parser) stateFn {
 	//print("Is parsing list\n")
 	for {
-		tok := <-p.items
+		tok := p.next()
 		switch {
 		// keyword at beginning of list
 		// only at beginning because lexer has checked that.
 		case isException(tok):
-			return handleException(tok, p)
-		case token.Keyword(tok.Typ) || tok.Typ == token.ItemLambda:
-			p.tree = p.tree.Append(&Node{
-				Tok: tok,
+			p.backup()
+			return parseException
+		// Cases with subs 
+		case token.Keyword(tok.Typ):
+			p.tree = p.tree.Append(&ast.Node{
+				Typ: ast.ItemKey,
+				Key: tok.Typ,
+				Var: tok.Val,
 			})
-			return parseInsideAction
+			return parseInsideList
 		case token.Constant(tok.Typ) || tok.Typ == token.ItemVariable:
-			p.tree.Append(&Node{
-				Tok: tok,
-			})
-		case tok.Typ == token.ItemEndList:
-			p.parenDepth--
-			if p.parenDepth == 0 {
-				return parseAll
+			var node = new(ast.Node)
+			switch{
+			case tok.Typ == token.ItemVariable:
+				node.Typ = ast.ItemVar
+				node.Var = tok.Val
+			case tok.Typ == token.ItemString:
+				node.Typ = ast.ItemString
+				node.Str = tok.Val
+			case tok.Typ == token.ItemNumber:
+				node.Typ = ast.ItemNum
+				num, err := strconv.ParseFloat(tok.Val, 64)
+				if err != nil {
+					log.Fatal(err)
+				}
+				node.Num = num
+			case tok.Typ == token.ItemBool:
+				node.Typ = ast.ItemNum
+				if tok.Val == "true" {
+					node.Num = 1
+				} else {
+					node.Num = 0
+				}
 			}
-		case tok.Typ == token.ItemBeginList:
-			p.parenDepth++
-		case isException(tok):
-			return handleException(tok, p)
-		}
-	}
-}
-
-// An action is a list which does something.
-// actions have the rest of the list as args.
-func parseInsideAction(p *parser) stateFn {
-	//print("Is parsing action\n")
-	for {
-		tok := <-p.items
-		switch {
-		case isException(tok):
-			return handleException(tok, p)
-		case token.Constant(tok.Typ) || tok.Typ == token.ItemVariable:
-			p.tree.Append(&Node{
-				Tok: tok,
-			})
+			p.tree.Append(node)
 		case tok.Typ == token.ItemEndList:
 			p.parenDepth--
 			tree, err := p.Root.Walk(p.parenDepth)
@@ -120,12 +135,9 @@ func parseInsideAction(p *parser) stateFn {
 			p.tree = tree
 			if p.parenDepth == 0 {
 				return parseAll
-			} else {
-				return parseInsideList
 			}
 		case tok.Typ == token.ItemBeginList:
 			p.parenDepth++
-			return parseInsideList
 		}
 	}
 }
@@ -137,10 +149,12 @@ func isException(tok token.Token) bool {
 	return false
 }
 
-func handleException(tok token.Token, p *parser) stateFn {
-	//print("Is parsing exception\n")
-	if tok.Typ == token.ItemEOF {
+func parseException(p *parser) stateFn {
+	tok := p.next()
+	switch {
+	case tok.Typ == token.ItemEOF:
 		return nil
+	default:
+		return p.errorf(tok)
 	}
-	return p.errorf(tok)
 }

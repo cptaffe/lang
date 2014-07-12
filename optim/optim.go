@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"github.com/cptaffe/lang/parser"
 	"github.com/cptaffe/lang/token"
-	"github.com/cptaffe/lang/lexer"
 	"github.com/cptaffe/lang/ast"
 	"time"
 	"bufio"
@@ -21,19 +20,13 @@ import (
 type evals struct {
 	Root      *ast.Tree        // root of tree
 	Tree      *ast.Tree        // current branch
-	ParseRoot *parser.Tree // root of parse tree
-	ParseTree *parser.Tree // root of parse tree
 }
 
-func Eval(tree *parser.Tree) *ast.Tree {
-	t := new(ast.Tree)
+func Eval(tree *ast.Tree) *ast.Tree {
 	e := &evals{
-		Root:      t,
-		Tree:      t,
-		ParseRoot: tree,
-		ParseTree: tree,
+		Root:      tree,
+		Tree:      tree,
 	}
-	ast.CreateFromParse(e.ParseRoot, e.Root)
 	e.evaluate(e.Root, ast.Variabs)
 	return e.Root
 }
@@ -332,10 +325,7 @@ func evalScan(t *ast.Tree) (*ast.Tree, error) {
 
 //lex/parses into a tree
 func evalEval(t *ast.Tree) (*ast.Tree, error) {
-	ch := lexer.Lex(t.Sub[0].Val.Str)
-	done := make(chan *parser.Tree)
-	parser.Parse(ch, done)
-	tree := <-done
+	tree := parser.Parse(t.Sub[0].Val.Str)
 	tr := Eval(tree)
 	return tr, nil
 }
