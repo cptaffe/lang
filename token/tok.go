@@ -50,6 +50,12 @@ const (
 	// Meta Operations (for ARM)
 	ItemDiv
 	ItemCmp // compare
+	// random external functions
+	ItemTime
+	ItemEval // evaluate
+	ItemLazy
+	ItemPrint
+	ItemScan
 	endOperation
 	beginCompare
 	ItemEq // Z set: test equality
@@ -83,19 +89,26 @@ var key = map[string]ItemType{
 	"lambda": ItemFunction,
 	"list":   ItemList,
 	// Operations (instructions)
-	"add": ItemAdd,
-	"adc": ItemAdc,
-	"sub": ItemSub,
-	"sbc": ItemSbc,
-	"mul": ItemMul,
-	"and": ItemAnd,
-	"or":  ItemOrr,
-	"xor": ItemEor,
+	"+": ItemAdd,
+	"+c": ItemAdc,
+	"-": ItemSub,
+	"-c": ItemSbc,
+	"*": ItemMul,
+	"&": ItemAnd,
+	"|":  ItemOrr,
+	"^": ItemEor,
 	"bic": ItemBic,
-	"div": ItemDiv,
+	"/": ItemDiv,
 	"cmp": ItemCmp,
+	// random external functions
+	"time": ItemTime,
+	"lazy": ItemLazy,
+	"print": ItemPrint,
+	"scan": ItemScan,
+	"eval": ItemEval,
 	// Conditionals (conditional instruction prefixes)
-	"eq": ItemEq,
+	"=": ItemEq,
+	"<": ItemLt,
 }
 
 const Eof = -1
