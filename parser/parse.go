@@ -16,6 +16,7 @@ type stateFn func(*parser) stateFn
 
 // lexer holds the state of the scanner.
 type parser struct {
+	name string // file name
 	state      stateFn          // the next lexing function to enter
 	items      chan token.Token // channel of scanned items
 	buff []token.Token // buffer is an array of tokens
@@ -25,11 +26,12 @@ type parser struct {
 	parenDepth int              // nesting depth of ( ) exprs
 }
 
-func Parse(s string) *ast.Tree {
-	ch := lexer.Lex(s)
+func Parse(s string, name string) *ast.Tree {
+	l := lexer.Lex(s, name)
 	tree := new(ast.Tree)
 	p := &parser{
-		items: ch,
+		name: l.Name,
+		items: l.Items,
 		tree:  tree,
 		Root:  tree,
 	}
@@ -53,8 +55,10 @@ func (p *parser) backup() {
 
 // errorf returns an error token and terminates the scan by passing
 // back a nil pointer that will be the next state, terminating l.nextItem.
-func (p *parser) errorf(tok token.Token) stateFn {
-	fmt.Printf("Error: %s\n", tok.Val)
+func (p *parser) errorf(format string, args ...interface{}) stateFn {
+	msg := fmt.Sprintf(format, args...)
+	// print error message
+	fmt.Printf("\033[1m%s: %s: \033[31merror:\033[0m\033[1m %s\033[0m\n", "parse", p.name, msg)
 	return nil
 }
 
@@ -73,7 +77,7 @@ func parseAll(p *parser) stateFn {
 		switch {
 		case isException(tok):
 			p.backup()
-			return parseException
+			return nil
 		case tok.Typ == token.ItemBeginList:
 			p.parenDepth++
 			return parseInsideList
@@ -92,7 +96,7 @@ func parseInsideList(p *parser) stateFn {
 		// only at beginning because lexer has checked that.
 		case isException(tok):
 			p.backup()
-			return parseException
+			return nil
 		// Cases with subs 
 		case token.Keyword(tok.Typ):
 			p.tree = p.tree.Append(&ast.Node{
@@ -147,14 +151,4 @@ func isException(tok token.Token) bool {
 		return true
 	}
 	return false
-}
-
-func parseException(p *parser) stateFn {
-	tok := p.next()
-	switch {
-	case tok.Typ == token.ItemEOF:
-		return nil
-	default:
-		return p.errorf(tok)
-	}
 }

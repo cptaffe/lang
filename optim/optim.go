@@ -41,39 +41,55 @@ var lookup = map[token.ItemType]eval{
 	token.ItemEq:  evalEq,
 	token.ItemLt: evalLt,
 	token.ItemTime: evalTime,
-	token.ItemPrint: evalPrint,
 	token.ItemScan: evalScan,
 }
 
 // evaluate does all the maths it can
 func (e *evals) evaluate(t *ast.Tree, v *variable.Variab) *ast.Tree {
-	//fmt.Printf("evaluate: %s\n", t)
+	// kill nils
+	if t == nil {
+		return t
+	}
 	// evaluate valueless trees that contain children
 	if t.Val == nil {
 		if t.Sub == nil {
 			return nil
 		}
 		return e.evaluateSubs(t, v)
-		// evaluate keys
 	} else if t.Val.Typ == ast.ItemKey {
-		tree := e.keys(t, v)
-		return tree
+		tr := e.keys(t, v)
+		return tr
 	} else if t.Val.Typ == ast.ItemVar {
-		tree := e.evaluate(e.variables(t, v), v)
-		return tree
+		tr := e.variables(t, v)
+		if tr != nil{
+			trs := e.evaluate(tr, v)
+			//fmt.Printf("evaluate returned: %s\n", trs)
+			if trs != nil {
+				return trs
+			} else {
+				return tr
+			}
+		} else {
+			return tr // nil
+		}
 	}
 	return t
 }
 
 // Keys
 func (e *evals) keys(t *ast.Tree, v *variable.Variab) *ast.Tree {
-	//fmt.Printf("keys: %s\n", t)
+	// kill nils
+	if t == nil {
+		return t
+	}
 	// special tokens
 	if t.Val.Typ == ast.ItemKey {
 		switch {
 		case t.Val.Key == token.ItemAssign || t.Val.Key == token.ItemFunction:
 			tree := e.variables(t, v)
-			return tree
+			if tree != nil {
+				return tree
+			}
 		case t.Val.Key == token.ItemCmp:
 			tree := e.compare(t, v)
 			return tree
@@ -92,21 +108,36 @@ func (e *evals) keys(t *ast.Tree, v *variable.Variab) *ast.Tree {
 		case t.Val.Key == token.ItemList:
 			return e.evaluateSubs(t, v) // lists evaluate to themselves
 		case t.Val.Key == token.ItemLambda:
-			tree := evalLambda(e.evaluateSubs(t, v), e, v)
-			return tree
-		default:
+			return evalLambda(e.evaluateSubs(t, v), e, v)
+		case t.Val.Key == token.ItemPrint:
 			t := e.evaluateSubs(t, v)
+			t , _ = evalPrint(t)
+		default:
 			// Compute math
-			if val, ok := lookup[t.Val.Key]; ok {
-				result, err := val(t)
-				if err != nil {
-					return nil
+			trs := e.evaluateSubs(t, v)
+			if trs != nil {
+				val, ok := lookup[t.Val.Key]
+				if ok && OnlyNums(t) {
+					result, err := val(trs)
+					if err == nil {
+						return result
+					}
 				}
-				return result
+			} else {
+				return nil
 			}
 		}
 	}
-	return nil
+	return t
+}
+
+func OnlyNums(t *ast.Tree) bool {
+	for _, j := range(t.Sub) {
+		if j.Val.Typ != ast.ItemNum {
+			return false
+		}
+	}
+	return true
 }
 
 // Evaluate Subs, so simple.
@@ -126,16 +157,13 @@ func (e *evals) evaluateSubs(t *ast.Tree, v *variable.Variab) *ast.Tree {
 // Variables is called when (1) there is an assignment key
 // (2) there is a variable
 func (e *evals) variables(t *ast.Tree, v *variable.Variab) *ast.Tree {
-	//fmt.Printf("variables: %s\n", t)
 	// get variable from record
 	if t.Val.Typ == ast.ItemVar {
-		// t.Val.Var is in the list of found variables
 		va := v.GetName(t.Val.Var)
-		if va != nil {
+		if va != nil && va.Tree != nil {
 			// evaluate here, RETURN VALUE, NOT POINTER
 			tr := new(ast.Tree)
 			tr = ast.CopyTree(va.Tree, tr)
-			//fmt.Printf("varaibles found: %s\n", tr)
 			return tr
 		} else {
 			return nil
@@ -152,20 +180,23 @@ func (e *evals) variables(t *ast.Tree, v *variable.Variab) *ast.Tree {
 			// check if just reassigning existing variable
 			va := v.GetName(name)
 			if v.Lazy {
-				tree = e.evaluate(tree, v)
+				tr := e.evaluate(tree, v)
+				if tr != nil{
+					tree = tr
+				}
 			}
 			if va != nil {
 				va.Tree = tree
 				// new variable creation
 			} else {
-				variable := &variable.Var{
+				val := &variable.Var{
 						Var:  name,
 						Tree: tree,
 					}
 				if v.Scope != nil {
-					v.Scope = append(v.Scope, variable)
+					v.Scope = append(v.Scope, val)
 				} else {
-					v.Var = append(v.Var, variable)
+					v.Var = append(v.Var, val)
 				}
 			}
 			// return tree
@@ -173,6 +204,7 @@ func (e *evals) variables(t *ast.Tree, v *variable.Variab) *ast.Tree {
 				Val: &ast.Node{
 					Typ: ast.ItemVar,
 					Var: name,
+					VarTree: tree,
 				},
 			}
 		}
@@ -182,7 +214,6 @@ func (e *evals) variables(t *ast.Tree, v *variable.Variab) *ast.Tree {
 
 // lambda takes a lambda tree: variable keyword with args
 func (e *evals) lambda(t *ast.Tree, v *variable.Variab) *ast.Tree {
-	//fmt.Printf("lambda: %s\n", t)
 	// check if lambda is defined
 	va := e.variables(&ast.Tree{
 		Val: &ast.Node{
@@ -223,7 +254,10 @@ func (e *evals) lambda(t *ast.Tree, v *variable.Variab) *ast.Tree {
 
 // compare conditionally evaluates the second parameter pending the first
 func (e *evals) compare(t *ast.Tree, v *variable.Variab) *ast.Tree {
-	//fmt.Printf("compare: %s\n", t)
+	// kill nils
+	if t == nil {
+		return t
+	}
 	// test value of first param
 	if len(t.Sub) != 3 {
 		return nil
@@ -327,7 +361,7 @@ func evalScan(t *ast.Tree) (*ast.Tree, error) {
 
 //lex/parses into a tree
 func evalEval(t *ast.Tree) (*ast.Tree, error) {
-	tree := parser.Parse(t.Sub[0].Val.Str)
+	tree := parser.Parse(t.Sub[0].Val.Str, "eval")
 	tr := Eval(tree)
 	return tr, nil
 }

@@ -19,14 +19,14 @@ type stateFn func(*lexer) stateFn
 
 // lexer holds the state of the scanner.
 type lexer struct {
-	name       string           // the name of the input; used only for error reports
+	Name       string           // the name of the input; used only for error reports
 	input      string           // the string being scanned
 	state      stateFn          // the next lexing function to enter
 	pos        token.Pos        // current position in the input
 	start      token.Pos        // start position of this item
 	width      token.Pos        // width of last rune read from input
 	lastPos    token.Pos        // position of most recent item returned by nextItem
-	items      chan token.Token // channel of scanned items
+	Items      chan token.Token // channel of scanned items
 	parenDepth int              // nesting depth of ( ) exprs
 }
 
@@ -56,7 +56,7 @@ func (l *lexer) backup() {
 
 // emit passes an item back to the client.
 func (l *lexer) emit(t token.ItemType) {
-	l.items <- token.Token{t, l.start, l.input[l.start:l.pos]}
+	l.Items <- token.Token{t, l.start, l.input[l.start:l.pos]}
 	l.start = l.pos
 }
 
@@ -88,21 +88,30 @@ func (l *lexer) lineNumber() int {
 	return 1 + strings.Count(l.input[:l.lastPos], "\n")
 }
 
+func (l *lexer) charNumber() int {
+	return int(l.lastPos) - strings.LastIndex(l.input[:l.lastPos], "\n")
+}
+
 // errorf returns an error token and terminates the scan by passing
 // back a nil pointer that will be the next state, terminating l.nextItem.
 func (l *lexer) errorf(format string, args ...interface{}) stateFn {
-	l.items <- token.Token{token.ItemError, l.start, fmt.Sprintf(format, args...)}
+	msg := fmt.Sprintf(format, args...)
+	// print error message
+	fmt.Printf("\033[1m%s: %s:%d:%d \033[31merror:\033[0m\033[1m %s\033[0m\n", "lex", l.Name, l.lineNumber(), l.charNumber(), msg)
+	// send error token
+	l.Items <- token.Token{token.ItemError, l.start, msg}
 	return nil
 }
 
 // lex creates a new scanner for the input string.
-func Lex(input string) chan token.Token {
+func Lex(input string, name string) *lexer {
 	l := &lexer{
 		input: input,
-		items: make(chan token.Token),
+		Name: name,
+		Items: make(chan token.Token),
 	}
 	go l.run()
-	return l.items
+	return l
 }
 
 // run runs the state machine for the lexer.
@@ -110,7 +119,7 @@ func (l *lexer) run() {
 	for l.state = lexAll; l.state != nil; {
 		l.state = l.state(l)
 	}
-	close(l.items)
+	close(l.Items)
 }
 
 // state functions
@@ -139,7 +148,7 @@ func lexAll(l *lexer) stateFn {
 			return lexList
 		} else {
 			// r is not a list
-			return l.errorf("unexpected nonlist item: %#U", r)
+			return l.errorf("unexpected item: %#U", r)
 		}
 	}
 	// Correctly reached EOF.
@@ -202,7 +211,7 @@ func lexInsideList(l *lexer) stateFn {
 		l.backup()
 		return lexVariable
 	default:
-		return l.errorf("unrecognized character in list: %#U", r)
+		return l.errorf("unexpected item: %#U", r)
 	}
 	return lexInsideList
 }
@@ -241,7 +250,6 @@ Loop:
 
 // lexVariable scans an alphanumeric.
 func lexKeyword(l *lexer) stateFn {
-Loop:
 	for {
 		switch r := l.next(); {
 		//case isAlphaNumeric(r):
@@ -253,10 +261,17 @@ Loop:
 			switch {
 			case token.IsKeyword(word):
 				l.emit(token.Lookup(word))
+				return lexInsideList
 			case isAlphaNumericWord(word):
 				l.emit(token.ItemLambda)
+				return lexInsideList
+			default:
+				if len(word) > 0{
+					return l.errorf("unexpected nonkeyword \"%s\"", word)
+				} else {
+					return l.errorf("unexpected nonkeyword")
+				}
 			}
-			break Loop
 		}
 	}
 	return lexInsideList

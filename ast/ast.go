@@ -30,8 +30,8 @@ type Node struct {
 	Num    float64        // number type, float64 should handle this well.
 	Str string // string type
 	Var    string         // variable name
+	VarTree *Tree // var tree
 	Key    token.ItemType // keywords have an itemtype for identification
-	Solved bool           // shows whether var is indexed or not
 }
 
 // Append adds a node to the Sub tree of the tree.
@@ -64,10 +64,12 @@ func CopyTree(t *Tree, tr *Tree) *Tree {
 				Num: t.Val.Num, // float64
 				Str: t.Val.Str, // string
 				Var: t.Val.Var, // string
+				VarTree: t.Val.VarTree, // tree for vars
 				Key: t.Val.Key, // int
-				Solved: t.Val.Solved,
 			},
 		}
+	} else {
+		return nil
 	}
 	if len(t.Sub) > 0 {
 		for i := 0; i < len(t.Sub); i++ {
@@ -86,24 +88,25 @@ func (tree *Tree) String() string {
 		s += tree.Val.String()
 	}
 	if len(tree.Sub) > 0 {
+		var str string
 		for i := 0; i < len(tree.Sub); i++ {
 			if i != len(tree.Sub)-1 {
-				s += tree.Sub[i].String() + ", "
+				str += tree.Sub[i].String() + ", "
 			} else {
 				// shortens long lambda printing
 				if tree.Val != nil && tree.Val.Key == token.ItemFunction {
 					st := tree.Sub[i].String()
 					if len(s) > 10 {
-						s += fmt.Sprintf("%s...", st[:10])
+						str += fmt.Sprintf("%s...", st[:10])
 					} else {
-						s += fmt.Sprintf("%s", st)
+						str += fmt.Sprintf("%s", st)
 					}
 				} else {
-					s += tree.Sub[i].String()
+					str += tree.Sub[i].String()
 				}
 			}
 		}
-		s = fmt.Sprintf("{%s}", s)
+		s = fmt.Sprintf("%s{%s}", s, str)
 	}
 	return s
 }
@@ -113,12 +116,20 @@ func (node *Node) String() string {
 	case ItemNum:
 		return fmt.Sprintf("%s", strconv.FormatFloat(node.Num, 'g', -1, 64))
 	case ItemVar:
-		return fmt.Sprintf("%s", node.Var)
+		if node.VarTree != nil {
+			return fmt.Sprintf("(%s:%s)", node.Var, node.VarTree)
+		} else {
+			return fmt.Sprintf("(%s)", node.Var)
+		}
 	case ItemKey:
 		if node.Key == token.ItemLambda {
-			return fmt.Sprintf("call(%s)", node.Var)
+			if node.VarTree != nil {
+				return fmt.Sprintf("(%s:%s)", node.Var, node.VarTree)
+			} else {
+				return fmt.Sprintf("%s", token.StringLookup(node.Key))
+			}
 		}
-		return token.StringLookup(node.Key)
+		return fmt.Sprintf("%s", token.StringLookup(node.Key))
 	case ItemString:
 		return node.Str
 	default:

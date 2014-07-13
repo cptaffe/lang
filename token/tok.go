@@ -4,7 +4,7 @@ import (
 	"fmt"
 )
 
-type Pos int // threw this in there so it'll work.
+type Pos int
 
 // item represents a token or text string returned from the scanner.
 type Token struct {
