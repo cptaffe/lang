@@ -9,6 +9,7 @@ import (
 	"github.com/cptaffe/lang/lexer"
 	"log"
 	"strconv"
+	"strings"
 )
 
 // stateFn represents the state of the scanner as a function that returns the next state.
@@ -18,6 +19,7 @@ type stateFn func(*parser) stateFn
 type parser struct {
 	name string // file name
 	state      stateFn          // the next lexing function to enter
+	input string
 	items      chan token.Token // channel of scanned items
 	buff []token.Token // buffer is an array of tokens
 	pos int // pos is the location in buff
@@ -31,6 +33,7 @@ func Parse(s string, name string) *ast.Tree {
 	tree := new(ast.Tree)
 	p := &parser{
 		name: l.Name,
+		input: s,
 		items: l.Items,
 		tree:  tree,
 		Root:  tree,
@@ -53,12 +56,29 @@ func (p *parser) backup() {
 	p.pos -= 1
 }
 
+// peekBack
+func (p *parser) peekBack() token.Token {
+	p.backup()
+	return p.next()
+}
+
+// get line number
+func (p *parser) lineNumber(tok token.Token) int {
+	return 1 + strings.Count(p.input[:tok.Pos], "\n")
+}
+
+// get character number
+func (p *parser) charNumber(tok token.Token) int {
+	return int(tok.Pos) - strings.LastIndex(p.input[:tok.Pos], "\n")
+}
+
 // errorf returns an error token and terminates the scan by passing
 // back a nil pointer that will be the next state, terminating l.nextItem.
 func (p *parser) errorf(format string, args ...interface{}) stateFn {
 	msg := fmt.Sprintf(format, args...)
+	tok := p.peekBack()
 	// print error message
-	fmt.Printf("\033[1m%s: %s: \033[31merror:\033[0m\033[1m %s\033[0m\n", "parse", p.name, msg)
+	fmt.Printf("\033[1m%s: %s:%d:%d: \033[31merror:\033[0m\033[1m %s\033[0m\n", "parse", p.name, p.lineNumber(tok), p.charNumber(tok), msg)
 	return nil
 }
 
