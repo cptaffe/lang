@@ -44,6 +44,14 @@ var lookup = map[token.ItemType]eval{
 	token.ItemScan: evalScan,
 }
 
+// errorf returns an error token and terminates the scan by passing
+// back a nil pointer that will be the next state, terminating l.nextItem.
+func errorf(format string, args ...interface{}) {
+	msg := fmt.Sprintf(format, args...)
+	// print error message
+	fmt.Printf("\033[1m%s: \033[31merror:\033[0m\033[1m %s\033[0m\n", "optim", msg)
+}
+
 // evaluate does all the maths it can
 func (e *evals) evaluate(t *ast.Tree, v *variable.Variab) *ast.Tree {
 	// kill nils
@@ -53,6 +61,7 @@ func (e *evals) evaluate(t *ast.Tree, v *variable.Variab) *ast.Tree {
 	// evaluate valueless trees that contain children
 	if t.Val == nil {
 		if t.Sub == nil {
+			errorf("no values in tree")
 			return nil
 		}
 		return e.evaluateSubs(t, v)
@@ -63,7 +72,6 @@ func (e *evals) evaluate(t *ast.Tree, v *variable.Variab) *ast.Tree {
 		tr := e.variables(t, v)
 		if tr != nil{
 			trs := e.evaluate(tr, v)
-			//fmt.Printf("evaluate returned: %s\n", trs)
 			if trs != nil {
 				return trs
 			} else {
@@ -97,11 +105,16 @@ func (e *evals) keys(t *ast.Tree, v *variable.Variab) *ast.Tree {
 			v.Lazy = true
 			tree := e.evaluate(t.Sub[0], v)
 			v.Lazy = false
-			return tree
+			if tree != nil {
+				return tree
+			}
+			errorf("cannot evaluate: %s", t)
+			return nil
 		case t.Val.Key == token.ItemEval:
 			ta := e.evaluateSubs(t, v)
 			tr, err := evalEval(ta)
 			if err != nil || tr == nil {
+				errorf("cannot evaluate: %s", ta)
 				return nil
 			}
 			return tr
@@ -122,6 +135,7 @@ func (e *evals) keys(t *ast.Tree, v *variable.Variab) *ast.Tree {
 					if err == nil {
 						return result
 					}
+					errorf("%s: %s", err, trs)
 				}
 			} else {
 				return nil
@@ -166,6 +180,7 @@ func (e *evals) variables(t *ast.Tree, v *variable.Variab) *ast.Tree {
 			tr = ast.CopyTree(va.Tree, tr)
 			return tr
 		} else {
+			errorf("undefined variable %s", t)
 			return nil
 		}
 		// evaluate assignment keys
@@ -244,10 +259,9 @@ func (e *evals) lambda(t *ast.Tree, v *variable.Variab) *ast.Tree {
 				return tr
 			}
 		} else {
-			fmt.Printf("Wrong number of arguments: (%s) for (%s).\n", t.Sub, args)
+			errorf("%s: wrong number of args: %d for %d", t.Val.Var, len(t.Sub), len(args))
+			return nil
 		}
-	} else {
-		fmt.Printf("undefined lambda!\n")
 	} // undefined lambda
 	return nil
 }
