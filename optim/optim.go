@@ -124,7 +124,7 @@ func (e *evals) keys(t *ast.Tree, v *variable.Variab) *ast.Tree {
 			return evalLambda(e.evaluateSubs(t, v), e, v)
 		case t.Val.Key == token.ItemPrint:
 			t := e.evaluateSubs(t, v)
-			t , _ = evalPrint(t)
+			//t , _ = evalPrint(t)
 		default:
 			// Compute math
 			trs := e.evaluateSubs(t, v)
