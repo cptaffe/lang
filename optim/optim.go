@@ -117,6 +117,12 @@ func (e *evals) keys(t *ast.Tree, v *variable.Variab) *ast.Tree {
 			return e.evaluateSubs(t, v) // lists evaluate to themselves
 		case t.Val.Key == token.ItemLambda:
 			return evalLambda(e.evaluateSubs(t, v), e, v)
+<<<<<<< HEAD
+=======
+		case t.Val.Key == token.ItemPrint:
+			t := e.evaluateSubs(t, v)
+			//t , _ = evalPrint(t)
+>>>>>>> 3a9e65d325fbaeb1484a9746d767962825688faf
 		default:
 			// Compute math
 			trs := e.evaluateSubs(t, v)
