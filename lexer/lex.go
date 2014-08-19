@@ -248,7 +248,8 @@ Loop:
 	return lexInsideList
 }
 
-// lexVariable scans an alphanumeric.
+// lexKeyword scans a keyword
+// if no keyword is found, it is a list.
 func lexKeyword(l *lexer) stateFn {
 	for {
 		switch r := l.next(); {
@@ -258,11 +259,12 @@ func lexKeyword(l *lexer) stateFn {
 		default:
 			l.backup()
 			word := l.input[l.start:l.pos]
+			fmt.Printf("%s\n", word)
 			switch {
 			case token.IsKeyword(word):
 				l.emit(token.Lookup(word))
 				return lexInsideList
-			case isAlphaNumericWord(word):
+			case isAlphaNumericWord(word[:len(word)-1]) && word[len(word)-1] == '!':
 				l.emit(token.ItemLambda)
 				return lexInsideList
 			default:

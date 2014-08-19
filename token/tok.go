@@ -85,7 +85,7 @@ const (
 
 var key = map[string]ItemType{
 	// Assignment
-	"assign": ItemAssign,
+	":": ItemAssign,
 	"lambda": ItemFunction,
 	"list":   ItemList,
 	// Operations (instructions)

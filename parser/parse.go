@@ -136,11 +136,11 @@ func parseInsideList(p *parser) stateFn {
 				node.Str = tok.Val[1:len(tok.Val)-1]
 			case tok.Typ == token.ItemNumber:
 				node.Typ = ast.ItemNum
-				num, err := strconv.ParseFloat(tok.Val, 64)
+				num, err := strconv.ParseInt(tok.Val, 10, 32)
 				if err != nil {
 					log.Fatal(err)
 				}
-				node.Num = num
+				node.Num = int32(num)
 			case tok.Typ == token.ItemBool:
 				node.Typ = ast.ItemNum
 				if tok.Val == "true" {

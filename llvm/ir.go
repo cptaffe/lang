@@ -1,14 +1,11 @@
-// This is the less generic tree, it currently only supports
-// integers, keys (unevaluated operators), and variables (unevaluated constants)
+// Originally made this as an llvm emitter,
+// but I'm just going to emit C code.
+// SUPER COMPATABILITY MODE!
 
-// TODO: Add better errors, current ones sorta suck.
+package llvm
 
-package optim
-
-import (
-	"errors"
+import(
 	"fmt"
-	"github.com/cptaffe/lang/parser"
 	"github.com/cptaffe/lang/token"
 	"github.com/cptaffe/lang/ast"
 	"github.com/cptaffe/lang/variable"
@@ -30,13 +27,14 @@ func Eval(tree *ast.Tree) *ast.Tree {
 	return e.Root
 }
 
-var lookup = map[token.ItemType]eval{
-	token.ItemAdd: evalAdd,
-	token.ItemSub: evalSub,
-	token.ItemMul: evalMul,
-	token.ItemDiv: evalDiv,
-	token.ItemEq:  evalEq,
-	token.ItemLt: evalLt,
+// emit
+type emit func(t *ast.Tree) error
+
+var lookup = map[token.ItemType]emit{
+	token.ItemAdd: emitAdd,
+	token.ItemSub: emitSub,
+	token.ItemMul: emitMul,
+	token.ItemDiv: emitDiv,
 }
 
 // errorf returns an error token and terminates the scan by passing
@@ -47,7 +45,13 @@ func errorf(format string, args ...interface{}) {
 	fmt.Printf("\033[1m%s: \033[31merror:\033[0m\033[1m %s\033[0m\n", "optim", msg)
 }
 
-// evaluate does all the maths it can
+func emitCode(format string, args ...interface{}) {
+	fmt.Printf(format, args...)
+}
+
+// Evaluate
+// evaluates the tree semi-recursively.
+// Evaluate tries to quantize as much as it possibly can.
 func (e *evals) evaluate(t *ast.Tree, v *variable.Variab) *ast.Tree {
 	// kill nils
 	if t == nil {
@@ -61,11 +65,19 @@ func (e *evals) evaluate(t *ast.Tree, v *variable.Variab) *ast.Tree {
 		}
 		return e.evaluateSubs(t, v)
 	} else if t.Val.Typ == ast.ItemKey {
+		// Here we are retrieving the value of a key,
+		// in the interpreter, this ment evaluating a function,
+		// here, it means creating a function call.
 		tr := e.keys(t, v)
 		return tr
 	} else if t.Val.Typ == ast.ItemVar {
+		// Here we are retrieving a variable definition.
+		// These act as both constants and variables,
+		// the emitter will optimize.
 		tr := e.variables(t, v)
-		if tr != nil{
+		if tr != nil {
+			// If the variable is found, the variable's value
+			// is evaluated.
 			trs := e.evaluate(tr, v)
 			if trs != nil {
 				return trs
@@ -80,6 +92,9 @@ func (e *evals) evaluate(t *ast.Tree, v *variable.Variab) *ast.Tree {
 }
 
 // Keys
+// Emits the text equivalent to the key used.
+// For example, (+ 1 1) will be "1 + 1" in c code,
+// which can actually be optimized to "2".
 func (e *evals) keys(t *ast.Tree, v *variable.Variab) *ast.Tree {
 	// kill nils
 	if t == nil {
@@ -88,7 +103,9 @@ func (e *evals) keys(t *ast.Tree, v *variable.Variab) *ast.Tree {
 	// special tokens
 	if t.Val.Typ == ast.ItemKey {
 		switch {
-		case t.Val.Key == token.ItemAssign || t.Val.Key == token.ItemFunction:
+			// For now I'm only focusing on implementing
+			// the basic operators.
+		/*case t.Val.Key == token.ItemAssign || t.Val.Key == token.ItemFunction:
 			tree := e.variables(t, v)
 			if tree != nil {
 				return tree
@@ -116,16 +133,27 @@ func (e *evals) keys(t *ast.Tree, v *variable.Variab) *ast.Tree {
 		case t.Val.Key == token.ItemList:
 			return e.evaluateSubs(t, v) // lists evaluate to themselves
 		case t.Val.Key == token.ItemLambda:
+			// emits proper C function call.
 			return evalLambda(e.evaluateSubs(t, v), e, v)
+		*/
 		default:
-			// Compute math
+			// Each language provided function or call has
+			// a corresponding function that can emit appropriate
+			// C code.
 			trs := e.evaluateSubs(t, v)
 			if trs != nil {
 				val, ok := lookup[t.Val.Key]
 				if ok && OnlyNums(t) {
-					result, err := val(trs)
+					err := val(trs)
 					if err == nil {
-						return result
+						// Totally rad shim...
+						// TODO: Fix this shit.
+						return &ast.Tree{
+							Val: &ast.Node{
+								Typ: ast.ItemNum,
+								Num: 0,
+							},
+						}
 					}
 					errorf("%s: %s", err, trs)
 				}
@@ -275,104 +303,66 @@ func (e *evals) compare(t *ast.Tree, v *variable.Variab) *ast.Tree {
 	return nil
 }
 
-// evals
-type eval func(t *ast.Tree) (*ast.Tree, error)
-
-func evalLambda(t *ast.Tree, e *evals, v *variable.Variab) *ast.Tree {
-	tree := e.lambda(t, v)
-	return tree
+// Does not actually add, instead emits C adding syntax.
+// This operation is permitted within others, so no semicolons,
+// newlines, or tabs were emitted.
+// TODO: Add optimization.
+func emitAdd(t *ast.Tree) error {
+	for i := 0; i < len(t.Sub); i++ {
+		// emit digit (only integers for now).
+		emitCode("%d", t.Sub[i].Val.Num)
+		if i != len(t.Sub) - 1 {
+			// If between two digits, emit a '+' to add them
+			emitCode(" + ")
+		}
+	}
+	return nil
 }
 
-func evalEq(t *ast.Tree) (*ast.Tree, error) {
-	if len(t.Sub) != 2 {
-		return nil, errors.New("eq takes 2 atoms")
+// Does not actually subtract, instead emits C adding syntax.
+// This operation is permitted within others, so no semicolons,
+// newlines, or tabs were emitted.
+// TODO: Add optimization.
+func emitSub(t *ast.Tree) error {
+	for i := 0; i < len(t.Sub); i++ {
+		// emit digit (only integers for now).
+		emitCode("%d", t.Sub[i].Val.Num)
+		if i != len(t.Sub) - 1 {
+			// If between two digits, emit a '-' to subtract them
+			emitCode(" - ")
+		}
 	}
-
-	var n int32 = 0
-	if t.Sub[0].Val.Num == t.Sub[1].Val.Num {
-		n = 1
-	}
-	return &ast.Tree{
-		Val: &ast.Node{
-			Typ: ast.ItemNum,
-			Num: n,
-		},
-	}, nil
+	return nil
 }
 
-func evalLt(t *ast.Tree) (*ast.Tree, error) {
-	if len(t.Sub) != 2 {
-		return nil, errors.New("eq takes 2 atoms")
+// Does not actually multiply, instead emits C adding syntax.
+// This operation is permitted within others, so no semicolons,
+// newlines, or tabs were emitted.
+// TODO: Add optimization.
+func emitMul(t *ast.Tree) error {
+	for i := 0; i < len(t.Sub); i++ {
+		// emit digit (only integers for now).
+		emitCode("%d", t.Sub[i].Val.Num)
+		if i != len(t.Sub) - 1 {
+			// If between two digits, emit a '*' to multiply them
+			emitCode(" * ")
+		}
 	}
-
-	var n int32 = 0
-	if t.Sub[0].Val.Num < t.Sub[1].Val.Num {
-		n = 1
-	}
-	return &ast.Tree{
-		Val: &ast.Node{
-			Typ: ast.ItemNum,
-			Num: n,
-		},
-	}, nil
+	return nil
 }
 
-//lex/parses into a tree
-func evalEval(t *ast.Tree) (*ast.Tree, error) {
-	tree := parser.Parse(t.Sub[0].Val.Str, "eval")
-	tr := Eval(tree)
-	return tr, nil
-}
-
-func evalAdd(t *ast.Tree) (*ast.Tree, error) {
-	n := t.Sub[0].Val.Num
-	for i := 1; i < len(t.Sub); i++ {
-		n += t.Sub[i].Val.Num
+// Does not actually divide, instead emits C adding syntax.
+// This operation is permitted within others, so no semicolons,
+// newlines, or tabs were emitted.
+// TODO: Add optimization.
+func emitDiv(t *ast.Tree) error {
+	for i := 0; i < len(t.Sub); i++ {
+		// emit digit (only integers for now).
+		emitCode("%d", t.Sub[i].Val.Num)
+		if i != len(t.Sub) - 1 {
+			// If between two digits, emit a '/' to divide them
+			emitCode(" / ")
+		}
 	}
-	return &ast.Tree{
-		Val: &ast.Node{
-			Typ: ast.ItemNum,
-			Num: n,
-		},
-	}, nil
-}
-
-
-func evalSub(t *ast.Tree) (*ast.Tree, error) {
-	n := t.Sub[0].Val.Num
-	for i := 1; i < len(t.Sub); i++ {
-		n -= t.Sub[i].Val.Num
-	}
-	return &ast.Tree{
-		Val: &ast.Node{
-			Typ: ast.ItemNum,
-			Num: n,
-		},
-	}, nil
-}
-
-func evalMul(t *ast.Tree) (*ast.Tree, error) {
-	n := t.Sub[0].Val.Num
-	for i := 1; i < len(t.Sub); i++ {
-		n *= t.Sub[i].Val.Num
-	}
-	return &ast.Tree{
-		Val: &ast.Node{
-			Typ: ast.ItemNum,
-			Num: n,
-		},
-	}, nil
-}
-
-func evalDiv(t *ast.Tree) (*ast.Tree, error) {
-	n := t.Sub[0].Val.Num
-	for i := 1; i < len(t.Sub); i++ {
-		n /= t.Sub[i].Val.Num
-	}
-	return &ast.Tree{
-		Val: &ast.Node{
-			Typ: ast.ItemNum,
-			Num: n,
-		},
-	}, nil
+	return nil
 }
