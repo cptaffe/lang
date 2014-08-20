@@ -259,12 +259,11 @@ func lexKeyword(l *lexer) stateFn {
 		default:
 			l.backup()
 			word := l.input[l.start:l.pos]
-			fmt.Printf("%s\n", word)
 			switch {
 			case token.IsKeyword(word):
 				l.emit(token.Lookup(word))
 				return lexInsideList
-			case isAlphaNumericWord(word[:len(word)-1]) && word[len(word)-1] == '!':
+			case isAlphaNumericWord(word[:len(word)-1]):
 				l.emit(token.ItemLambda)
 				return lexInsideList
 			default:
