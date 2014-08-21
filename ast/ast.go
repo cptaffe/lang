@@ -27,7 +27,7 @@ type Tree struct {
 // 
 type Node struct {
 	Typ    ItemType
-	Num    int32        // number type, float64 should handle this well.
+	Num    float64//int32        // number type, float64 should handle this well.
 	Str string // string type
 	Var    string         // variable name
 	VarTree *Tree // var tree
@@ -114,7 +114,7 @@ func (tree *Tree) String() string {
 func (node *Node) String() string {
 	switch node.Typ {
 	case ItemNum:
-		return fmt.Sprintf("%s", strconv.FormatInt(int64(node.Num), 10))
+		return fmt.Sprintf("%s", strconv.FormatFloat(node.Num, 'g', -1, 64))//FormatInt(int64(node.Num), 10))
 	case ItemVar:
 		if node.VarTree != nil {
 			return fmt.Sprintf("(%s:%s)", node.Var, node.VarTree)

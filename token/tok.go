@@ -38,7 +38,7 @@ const (
 	ItemFunction // lambda keyword
 	ItemLambda   // lambda variable token
 	ItemList     // list of stuff
-	ItemAtom // individual atom
+	ItemSubAsOp // subs first subtree as op
 	ItemAdd      // add
 	ItemAdc      // add with carry
 	ItemSub      // subtract
@@ -83,7 +83,6 @@ var key = map[string]ItemType{
 	":": ItemAssign,
 	"lambda": ItemFunction,
 	"list":   ItemList,
-	"atom": ItemAtom,
 	// Operations (instructions)
 	"+": ItemAdd,
 	"-": ItemSub,

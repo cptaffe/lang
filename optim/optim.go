@@ -36,8 +36,6 @@ func (scope *Scope) evalChildren(tree *ast.Tree) *ast.Tree {
 		t := scope.eval(tree.Sub[i])
 		if t != nil {
 			tree.Sub[i] = t
-		} else {
-			errorf("eval fail: %s", tree.Sub[i])
 		}
 	}
 	return tree
@@ -45,7 +43,6 @@ func (scope *Scope) evalChildren(tree *ast.Tree) *ast.Tree {
 
 // eval 
 func (scope *Scope) eval(tree *ast.Tree) *ast.Tree {
-	errorf("in eval: %s", tree)
 	if tree.Val.Typ == ast.ItemKey {
 		return scope.evalKey(tree)
 	} else if tree.Val.Typ == ast.ItemVar {
@@ -95,7 +92,6 @@ func onlyNums(tree *ast.Tree) bool {
 func (scope *Scope) evalVar(tree *ast.Tree) *ast.Tree {
 	t := ((*variable.Scope)(scope)).GetName(tree.Val.Var)
 	if t != nil && t.Tree != nil {
-		errorf("var: %s", t.Tree)
 		return ast.CopyTree(t.Tree, new(ast.Tree))
 	} else {
 		return nil
@@ -106,6 +102,12 @@ func (scope *Scope) evalAssign(tree *ast.Tree) *ast.Tree {
 	if len(tree.Sub) == 2 && tree.Sub[0].Val.Typ == ast.ItemVar {
 		name := tree.Sub[0].Val.Var
 		assig := ((*variable.Scope)(scope)).GetName(name)
+
+		// pre-optimized lambdas
+		if tree.Sub[1].Val.Key == token.ItemFunction {
+			tree.Sub[1] = (new(Scope)).evalChildren(tree.Sub[1])
+		}
+
 		if assig != nil {
 			assig.Tree = tree.Sub[1]
 		} else {
@@ -131,8 +133,40 @@ func (scope *Scope) evalAssign(tree *ast.Tree) *ast.Tree {
 
 // these may not exist, not sure...
 func (scope *Scope) evalFunc(tree *ast.Tree) *ast.Tree {
-	errorf("evalFunc")
-	return nil
+	if len(tree.Sub) == 3 {
+		return scope.lambda(tree, tree.Sub[2].Sub)
+	} else {
+		errorf("implicit lambda: arg number incorrect")
+		return nil
+	}
+}
+
+// evaluates lambdas
+func (scope *Scope) lambda(tree *ast.Tree, args []*ast.Tree) *ast.Tree {
+	sc := scope.childScope()
+	if len(tree.Sub[0].Sub) >= len(args) {
+		sc.Scope = append(sc.Scope, &variable.Var{
+				Var: "self",
+				Tree: ast.CopyTree(tree, new(ast.Tree)),
+			})
+		//return nil
+		for i := 0; i < len(tree.Sub[0].Sub); i++ {
+			// populate scope
+			sc.Scope = append(sc.Scope, &variable.Var{
+				Var: tree.Sub[0].Sub[i].Val.Var,
+				Tree: scope.eval(args[i]),
+			})
+		}
+		tr := sc.eval(tree.Sub[1])
+		if tr != nil {
+			return tr
+		} else {
+			return tree.Sub[1]
+		}
+	} else {
+		errorf("lambda: arg number incorrect")
+		return nil
+	}
 }
 
 func (scope *Scope) evalLambda(tree *ast.Tree) *ast.Tree {
@@ -141,30 +175,10 @@ func (scope *Scope) evalLambda(tree *ast.Tree) *ast.Tree {
 		Val: &ast.Node{
 			Typ: ast.ItemVar,
 			Var: tree.Val.Var,
-
 		},
 	})
 	if def != nil {
-		sc := scope.childScope()
-		args := def.Sub[0].Sub
-		if len(tree.Sub) == len(args) {
-			for i := 0; i < len(args); i++ {
-				// populate scope
-				sc.Scope = append(sc.Scope, &variable.Var{
-					Var: args[i].Val.Var,
-					Tree: scope.eval(tree.Sub[i]),
-				})
-			}
-			tr := sc.eval(def.Sub[1])
-			if tr != nil {
-				return tr
-			} else {
-				return def.Sub[1]
-			}
-		} else {
-			errorf("lambda: arg number incorrect")
-			return nil
-		}
+		return scope.lambda(def, tree.Sub)
 	} else {
 		errorf("undefined func")
 		return nil
@@ -207,7 +221,7 @@ func evalEq(t *ast.Tree) (*ast.Tree) {
 		errorf("eq takes two atoms")
 		return nil
 	}
-	var n int32 = 0
+	var n float64 = 0
 	if t.Sub[0].Val.Num == t.Sub[1].Val.Num {
 		n = 1
 	}
@@ -224,7 +238,7 @@ func evalLt(t *ast.Tree) (*ast.Tree) {
 		errorf("lt takes two atoms")
 		return nil
 	}
-	var n int32 = 0
+	var n float64 = 0
 	if t.Sub[0].Val.Num < t.Sub[1].Val.Num {
 		n = 1
 	}
