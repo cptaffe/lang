@@ -1,36 +1,199 @@
-// This is the less generic tree, it currently only supports
-// integers, keys (unevaluated operators), and variables (unevaluated constants)
-
-// TODO: Add better errors, current ones sorta suck.
-
 package optim
 
 import (
-	"errors"
 	"fmt"
-	"github.com/cptaffe/lang/parser"
+	//"github.com/cptaffe/lang/parser"
 	"github.com/cptaffe/lang/token"
 	"github.com/cptaffe/lang/ast"
 	"github.com/cptaffe/lang/variable"
 )
 
-var Variabs = new(variable.Variab) // global list of variables
+type Scope variable.Scope
 
-type evals struct {
-	Root      *ast.Tree        // root of tree
-	Tree      *ast.Tree        // current branch
+// error printing
+func errorf(format string, args ...interface{}) {
+	msg := fmt.Sprintf(format, args...)
+	// print error message
+	fmt.Printf("\033[1m%s: \033[31merror:\033[0m\033[1m %s\033[0m\n", "optim", msg)
 }
 
+// generate child scope
+func (s *Scope) childScope() *Scope {
+	scope := new(Scope)
+	scope.Parent = (*variable.Scope)(s)
+	return scope
+}
+
+// exported api
 func Eval(tree *ast.Tree) *ast.Tree {
-	e := &evals{
-		Root:      tree,
-		Tree:      tree,
-	}
-	e.evaluate(e.Root, Variabs)
-	return e.Root
+	scope := new(Scope) // scope
+	return scope.evalChildren(tree) // evaluate in scope
 }
 
-var lookup = map[token.ItemType]eval{
+// concurrently evaluates children
+func (scope *Scope) evalChildren(tree *ast.Tree) *ast.Tree {
+	for i := 0; i < len(tree.Sub); i++ {
+		t := scope.eval(tree.Sub[i])
+		if t != nil {
+			tree.Sub[i] = t
+		} else {
+			errorf("eval fail: %s", tree.Sub[i])
+		}
+	}
+	return tree
+}
+
+// eval 
+func (scope *Scope) eval(tree *ast.Tree) *ast.Tree {
+	errorf("in eval: %s", tree)
+	if tree.Val.Typ == ast.ItemKey {
+		return scope.evalKey(tree)
+	} else if tree.Val.Typ == ast.ItemVar {
+		return scope.evalVar(tree)
+	} else if tree.Val.Typ == ast.ItemNum{
+		return tree
+	} else {
+		return nil
+	}
+}
+
+// evaluates keys
+func (scope *Scope) evalKey(tree *ast.Tree) *ast.Tree {
+	if tree.Val.Key == token.ItemAssign {
+		return scope.evalAssign(tree)
+	} else if tree.Val.Key == token.ItemFunction {
+		return scope.evalFunc(tree)
+	} else if tree.Val.Key == token.ItemLambda {
+		return scope.evalLambda(tree)
+	} else if tree.Val.Key == token.ItemCmp {
+		return scope.evalCmp(tree)
+	} else {
+		t := scope.evalChildren(tree)
+		if t != nil {
+			val, ok := evalLookup[t.Val.Key]
+			if ok && onlyNums(t) {
+				return val(t)
+			}
+		} else {
+			return nil
+		}
+	}
+	return nil
+}
+
+func onlyNums(tree *ast.Tree) bool {
+	num := true
+	for i := 0; i < len(tree.Sub); i++ {
+		if tree.Sub[0].Val.Typ != ast.ItemNum {
+			num = false
+			break
+		}
+	}
+	return num
+}
+
+func (scope *Scope) evalVar(tree *ast.Tree) *ast.Tree {
+	t := ((*variable.Scope)(scope)).GetName(tree.Val.Var)
+	if t != nil && t.Tree != nil {
+		errorf("var: %s", t.Tree)
+		return ast.CopyTree(t.Tree, new(ast.Tree))
+	} else {
+		return nil
+	}
+}
+
+func (scope *Scope) evalAssign(tree *ast.Tree) *ast.Tree {
+	if len(tree.Sub) == 2 && tree.Sub[0].Val.Typ == ast.ItemVar {
+		name := tree.Sub[0].Val.Var
+		assig := ((*variable.Scope)(scope)).GetName(name)
+		if assig != nil {
+			assig.Tree = tree.Sub[1]
+		} else {
+			val := &variable.Var{
+				Var: name,
+				Tree: tree.Sub[1],
+			}
+			scope.Scope = append(scope.Scope, val)
+		}
+		// return tree
+			return &ast.Tree{
+				Val: &ast.Node{
+					Typ: ast.ItemVar,
+					Var: name,
+					VarTree: tree.Sub[1],
+				},
+			}
+	} else {
+		errorf("incorrect assign syntax %s", tree)
+		return nil
+	}
+}
+
+// these may not exist, not sure...
+func (scope *Scope) evalFunc(tree *ast.Tree) *ast.Tree {
+	errorf("evalFunc")
+	return nil
+}
+
+func (scope *Scope) evalLambda(tree *ast.Tree) *ast.Tree {
+	// eval subs
+	def := scope.evalVar(&ast.Tree{
+		Val: &ast.Node{
+			Typ: ast.ItemVar,
+			Var: tree.Val.Var,
+
+		},
+	})
+	if def != nil {
+		sc := scope.childScope()
+		args := def.Sub[0].Sub
+		if len(tree.Sub) == len(args) {
+			for i := 0; i < len(args); i++ {
+				// populate scope
+				sc.Scope = append(sc.Scope, &variable.Var{
+					Var: args[i].Val.Var,
+					Tree: scope.eval(tree.Sub[i]),
+				})
+			}
+			tr := sc.eval(def.Sub[1])
+			if tr != nil {
+				return tr
+			} else {
+				return def.Sub[1]
+			}
+		} else {
+			errorf("lambda: arg number incorrect")
+			return nil
+		}
+	} else {
+		errorf("undefined func")
+		return nil
+	}
+}
+
+func (scope *Scope) evalCmp(tree *ast.Tree) *ast.Tree {
+	if len(tree.Sub) == 3 {
+		t := scope.eval(tree.Sub[0])
+		if t != nil {
+			if t.Val.Typ == ast.ItemNum && t.Val.Num == 1 {
+				return scope.eval(tree.Sub[1])
+			} else {
+				return scope.eval(tree.Sub[2])
+			}
+		} else {
+			return nil
+		}
+	} else {
+		errorf("cmp: arg number incorrect")
+		return nil
+	}
+}
+
+// stuff functions
+
+type eval func(tree *ast.Tree) (*ast.Tree)
+
+var evalLookup = map[token.ItemType]eval{
 	token.ItemAdd: evalAdd,
 	token.ItemSub: evalSub,
 	token.ItemMul: evalMul,
@@ -39,258 +202,11 @@ var lookup = map[token.ItemType]eval{
 	token.ItemLt: evalLt,
 }
 
-// errorf returns an error token and terminates the scan by passing
-// back a nil pointer that will be the next state, terminating l.nextItem.
-func errorf(format string, args ...interface{}) {
-	msg := fmt.Sprintf(format, args...)
-	// print error message
-	fmt.Printf("\033[1m%s: \033[31merror:\033[0m\033[1m %s\033[0m\n", "optim", msg)
-}
-
-// evaluate does all the maths it can
-func (e *evals) evaluate(t *ast.Tree, v *variable.Variab) *ast.Tree {
-	// kill nils
-	if t == nil {
-		return t
-	}
-	// evaluate valueless trees that contain children
-	if t.Val == nil {
-		if t.Sub == nil {
-			errorf("no values in tree")
-			return nil
-		}
-		return e.evaluateSubs(t, v)
-	} else if t.Val.Typ == ast.ItemKey {
-		tr := e.keys(t, v)
-		return tr
-	} else if t.Val.Typ == ast.ItemVar {
-		tr := e.variables(t, v)
-		if tr != nil{
-			trs := e.evaluate(tr, v)
-			if trs != nil {
-				return trs
-			} else {
-				return tr
-			}
-		} else {
-			return tr // nil
-		}
-	}
-	return t
-}
-
-// Keys
-func (e *evals) keys(t *ast.Tree, v *variable.Variab) *ast.Tree {
-	// kill nils
-	if t == nil {
-		return t
-	}
-	// special tokens
-	if t.Val.Typ == ast.ItemKey {
-		switch {
-		case t.Val.Key == token.ItemAssign || t.Val.Key == token.ItemFunction:
-			tree := e.variables(t, v)
-			if tree != nil {
-				return tree
-			}
-		case t.Val.Key == token.ItemCmp:
-			tree := e.compare(t, v)
-			return tree
-		case t.Val.Key == token.ItemLazy:
-			v.Lazy = true
-			tree := e.evaluate(t.Sub[0], v)
-			v.Lazy = false
-			if tree != nil {
-				return tree
-			}
-			errorf("cannot evaluate: %s", t)
-			return nil
-		case t.Val.Key == token.ItemEval:
-			ta := e.evaluateSubs(t, v)
-			tr, err := evalEval(ta)
-			if err != nil || tr == nil {
-				errorf("cannot evaluate: %s", ta)
-				return nil
-			}
-			return tr
-		case t.Val.Key == token.ItemList:
-			return e.evaluateSubs(t, v) // lists evaluate to themselves
-		case t.Val.Key == token.ItemLambda:
-			return evalLambda(e.evaluateSubs(t, v), e, v)
-		case t.Val.Key == token.ItemPrint:
-			t := e.evaluateSubs(t, v)
-			t , _ = evalPrint(t)
-		default:
-			// Compute math
-			trs := e.evaluateSubs(t, v)
-			if trs != nil {
-				val, ok := lookup[t.Val.Key]
-				if ok && OnlyNums(t) {
-					result, err := val(trs)
-					if err == nil {
-						return result
-					}
-					errorf("%s: %s", err, trs)
-				}
-			} else {
-				return nil
-			}
-		}
-	}
-	return t
-}
-
-func OnlyNums(t *ast.Tree) bool {
-	for _, j := range(t.Sub) {
-		if j.Val.Typ != ast.ItemNum {
-			return false
-		}
-	}
-	return true
-}
-
-// Evaluate Subs, so simple.
-func (e *evals) evaluateSubs(t *ast.Tree, v *variable.Variab) *ast.Tree {
-	// Evaluate subs
-	if t.Sub != nil {
-		for i := 0; i < len(t.Sub); i++ {
-			tree := e.evaluate(t.Sub[i], v)
-			if tree != nil {
-				t.Sub[i] = tree
-			}
-		}
-	}
-	return t
-}
-
-// Variables is called when (1) there is an assignment key
-// (2) there is a variable
-func (e *evals) variables(t *ast.Tree, v *variable.Variab) *ast.Tree {
-	// get variable from record
-	if t.Val.Typ == ast.ItemVar {
-		va := v.GetName(t.Val.Var)
-		if va != nil && va.Tree != nil {
-			// evaluate here, RETURN VALUE, NOT POINTER
-			tr := new(ast.Tree)
-			tr = ast.CopyTree(va.Tree, tr)
-			return tr
-		} else {
-			errorf("undefined variable %s", t)
-			return nil
-		}
-		// evaluate assignment keys
-	} else if t.Val.Key == token.ItemAssign {
-		// itemAssign is the assignment operator
-		if len(t.Sub) == 2 && t.Sub[0].Val.Typ == ast.ItemVar {
-
-			// lazy evaluation, ie. do not eval
-			tree := t.Sub[1]
-			name := t.Sub[0].Val.Var
-
-			// check if just reassigning existing variable
-			va := v.GetName(name)
-			if v.Lazy {
-				tr := e.evaluate(tree, v)
-				if tr != nil{
-					tree = tr
-				}
-			}
-			if va != nil {
-				va.Tree = tree
-				// new variable creation
-			} else {
-				val := &variable.Var{
-						Var:  name,
-						Tree: tree,
-					}
-				if v.Scope != nil {
-					v.Scope = append(v.Scope, val)
-				} else {
-					v.Var = append(v.Var, val)
-				}
-			}
-			// return tree
-			return &ast.Tree{
-				Val: &ast.Node{
-					Typ: ast.ItemVar,
-					Var: name,
-					VarTree: tree,
-				},
-			}
-		}
-	}
-	return nil
-}
-
-// lambda takes a lambda tree: variable keyword with args
-func (e *evals) lambda(t *ast.Tree, v *variable.Variab) *ast.Tree {
-	// check if lambda is defined
-	va := e.variables(&ast.Tree{
-		Val: &ast.Node{
-			Typ: ast.ItemVar,
-			Var: t.Val.Var,
-		},
-	}, v)
-	if va != nil {
-		scope := new(variable.Variab)
-		scope.Var = v.Var // don't copy any scope
-		//fmt.Printf("%s\n",t)
-		args:= va.Sub[0].Sub;
-		if len(t.Sub) == len(args) {
-			// add evaluated variables to scope
-			for i := 0; i < len(args); i++ {
-				// create new scope
-				scope.Scope = append(scope.Scope, &variable.Var{
-					Var:  args[i].Val.Var,
-					Tree: t.Sub[i],
-				})
-			}
-			tr := e.evaluate(va.Sub[1], scope)
-			if tr != nil {
-				return tr
-			}
-		} else {
-			errorf("%s: wrong number of args: %d for %d", t.Val.Var, len(t.Sub), len(args))
-			return nil
-		}
-	} // undefined lambda
-	return nil
-}
-
-// compare conditionally evaluates the second parameter pending the first
-func (e *evals) compare(t *ast.Tree, v *variable.Variab) *ast.Tree {
-	// kill nils
-	if t == nil {
-		return t
-	}
-	// test value of first param
-	if len(t.Sub) != 3 {
+func evalEq(t *ast.Tree) (*ast.Tree) {
+	if len(t.Sub) != 2 {
+		errorf("eq takes two atoms")
 		return nil
 	}
-	tree := e.evaluate(t.Sub[0], v)
-	if tree.Val.Num == 1 {
-		tree := e.evaluate(t.Sub[1], v)
-		return tree
-	} else {
-		tree := e.evaluate(t.Sub[2], v)
-		return tree
-	}
-	return nil
-}
-
-// evals
-type eval func(t *ast.Tree) (*ast.Tree, error)
-
-func evalLambda(t *ast.Tree, e *evals, v *variable.Variab) *ast.Tree {
-	tree := e.lambda(t, v)
-	return tree
-}
-
-func evalEq(t *ast.Tree) (*ast.Tree, error) {
-	if len(t.Sub) != 2 {
-		return nil, errors.New("eq takes 2 atoms")
-	}
-
 	var n int32 = 0
 	if t.Sub[0].Val.Num == t.Sub[1].Val.Num {
 		n = 1
@@ -300,14 +216,14 @@ func evalEq(t *ast.Tree) (*ast.Tree, error) {
 			Typ: ast.ItemNum,
 			Num: n,
 		},
-	}, nil
+	}
 }
 
-func evalLt(t *ast.Tree) (*ast.Tree, error) {
+func evalLt(t *ast.Tree) (*ast.Tree) {
 	if len(t.Sub) != 2 {
-		return nil, errors.New("eq takes 2 atoms")
+		errorf("lt takes two atoms")
+		return nil
 	}
-
 	var n int32 = 0
 	if t.Sub[0].Val.Num < t.Sub[1].Val.Num {
 		n = 1
@@ -317,17 +233,10 @@ func evalLt(t *ast.Tree) (*ast.Tree, error) {
 			Typ: ast.ItemNum,
 			Num: n,
 		},
-	}, nil
+	}
 }
 
-//lex/parses into a tree
-func evalEval(t *ast.Tree) (*ast.Tree, error) {
-	tree := parser.Parse(t.Sub[0].Val.Str, "eval")
-	tr := Eval(tree)
-	return tr, nil
-}
-
-func evalAdd(t *ast.Tree) (*ast.Tree, error) {
+func evalAdd(t *ast.Tree) (*ast.Tree) {
 	n := t.Sub[0].Val.Num
 	for i := 1; i < len(t.Sub); i++ {
 		n += t.Sub[i].Val.Num
@@ -337,11 +246,11 @@ func evalAdd(t *ast.Tree) (*ast.Tree, error) {
 			Typ: ast.ItemNum,
 			Num: n,
 		},
-	}, nil
+	}
 }
 
 
-func evalSub(t *ast.Tree) (*ast.Tree, error) {
+func evalSub(t *ast.Tree) (*ast.Tree) {
 	n := t.Sub[0].Val.Num
 	for i := 1; i < len(t.Sub); i++ {
 		n -= t.Sub[i].Val.Num
@@ -351,10 +260,10 @@ func evalSub(t *ast.Tree) (*ast.Tree, error) {
 			Typ: ast.ItemNum,
 			Num: n,
 		},
-	}, nil
+	}
 }
 
-func evalMul(t *ast.Tree) (*ast.Tree, error) {
+func evalMul(t *ast.Tree) (*ast.Tree) {
 	n := t.Sub[0].Val.Num
 	for i := 1; i < len(t.Sub); i++ {
 		n *= t.Sub[i].Val.Num
@@ -364,10 +273,10 @@ func evalMul(t *ast.Tree) (*ast.Tree, error) {
 			Typ: ast.ItemNum,
 			Num: n,
 		},
-	}, nil
+	}
 }
 
-func evalDiv(t *ast.Tree) (*ast.Tree, error) {
+func evalDiv(t *ast.Tree) (*ast.Tree) {
 	n := t.Sub[0].Val.Num
 	for i := 1; i < len(t.Sub); i++ {
 		n /= t.Sub[i].Val.Num
@@ -377,5 +286,7 @@ func evalDiv(t *ast.Tree) (*ast.Tree, error) {
 			Typ: ast.ItemNum,
 			Num: n,
 		},
-	}, nil
+	}
 }
+
+

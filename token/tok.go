@@ -38,6 +38,7 @@ const (
 	ItemFunction // lambda keyword
 	ItemLambda   // lambda variable token
 	ItemList     // list of stuff
+	ItemAtom // individual atom
 	ItemAdd      // add
 	ItemAdc      // add with carry
 	ItemSub      // subtract
@@ -50,12 +51,6 @@ const (
 	// Meta Operations (for ARM)
 	ItemDiv
 	ItemCmp // compare
-	// random external functions
-	ItemTime
-	ItemEval // evaluate
-	ItemLazy
-	ItemPrint
-	ItemScan
 	endOperation
 	beginCompare
 	ItemEq // Z set: test equality
@@ -88,27 +83,22 @@ var key = map[string]ItemType{
 	":": ItemAssign,
 	"lambda": ItemFunction,
 	"list":   ItemList,
+	"atom": ItemAtom,
 	// Operations (instructions)
 	"+": ItemAdd,
-	"+c": ItemAdc,
 	"-": ItemSub,
-	"-c": ItemSbc,
 	"*": ItemMul,
 	"&": ItemAnd,
 	"|":  ItemOrr,
 	"^": ItemEor,
-	"bic": ItemBic,
 	"/": ItemDiv,
 	"cmp": ItemCmp,
-	// random external functions
-	"time": ItemTime,
-	"lazy": ItemLazy,
-	"print": ItemPrint,
-	"scan": ItemScan,
-	"eval": ItemEval,
 	// Conditionals (conditional instruction prefixes)
 	"=": ItemEq,
 	"<": ItemLt,
+	">": ItemGt,
+	">=": ItemGe,
+	"<=": ItemLe,
 }
 
 const Eof = -1
