@@ -30,7 +30,8 @@ func Eval(tree *ast.Tree) *ast.Tree {
 	return scope.evalChildren(tree) // evaluate in scope
 }
 
-// concurrently evaluates children
+// evaluates children
+// concurrency has too much overhead
 func (scope *Scope) evalChildren(tree *ast.Tree) *ast.Tree {
 	for i := 0; i < len(tree.Sub); i++ {
 		t := scope.eval(tree.Sub[i])
@@ -141,6 +142,22 @@ func (scope *Scope) evalFunc(tree *ast.Tree) *ast.Tree {
 	}
 }
 
+func (scope *Scope) evalLambda(tree *ast.Tree) *ast.Tree {
+	// eval subs
+	def := scope.evalVar(&ast.Tree{
+		Val: &ast.Node{
+			Typ: ast.ItemVar,
+			Var: tree.Val.Var,
+		},
+	})
+	if def != nil {
+		return scope.lambda(def, tree.Sub)
+	} else {
+		errorf("undefined func")
+		return nil
+	}
+}
+
 // evaluates lambdas
 func (scope *Scope) lambda(tree *ast.Tree, args []*ast.Tree) *ast.Tree {
 	sc := scope.childScope()
@@ -165,22 +182,6 @@ func (scope *Scope) lambda(tree *ast.Tree, args []*ast.Tree) *ast.Tree {
 		}
 	} else {
 		errorf("lambda: arg number incorrect")
-		return nil
-	}
-}
-
-func (scope *Scope) evalLambda(tree *ast.Tree) *ast.Tree {
-	// eval subs
-	def := scope.evalVar(&ast.Tree{
-		Val: &ast.Node{
-			Typ: ast.ItemVar,
-			Var: tree.Val.Var,
-		},
-	})
-	if def != nil {
-		return scope.lambda(def, tree.Sub)
-	} else {
-		errorf("undefined func")
 		return nil
 	}
 }
@@ -212,6 +213,7 @@ var evalLookup = map[token.ItemType]eval{
 	token.ItemSub: evalSub,
 	token.ItemMul: evalMul,
 	token.ItemDiv: evalDiv,
+	//token.ItemMod: evalMod, // only integer
 	token.ItemEq:  evalEq,
 	token.ItemLt: evalLt,
 }
@@ -303,4 +305,16 @@ func evalDiv(t *ast.Tree) (*ast.Tree) {
 	}
 }
 
-
+/*
+func evalMod(t *ast.Tree) (*ast.Tree) {
+	n := t.Sub[0].Val.Num
+	for i := 1; i < len(t.Sub); i++ {
+		n %= t.Sub[i].Val.Num
+	}
+	return &ast.Tree{
+		Val: &ast.Node{
+			Typ: ast.ItemNum,
+			Num: n,
+		},
+	}
+}*/

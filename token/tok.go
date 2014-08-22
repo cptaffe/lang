@@ -44,6 +44,7 @@ const (
 	ItemSub      // subtract
 	ItemSbc      // subtract with carry
 	ItemMul      // multiply
+	ItemMod // modulus
 	ItemAnd      // bitwise and
 	ItemOrr      // bitwise or
 	ItemEor      // bitwise xor
@@ -92,6 +93,7 @@ var key = map[string]ItemType{
 	"^": ItemEor,
 	"/": ItemDiv,
 	"cmp": ItemCmp,
+	"%": ItemMod,
 	// Conditionals (conditional instruction prefixes)
 	"=": ItemEq,
 	"<": ItemLt,
